@@ -91,66 +91,129 @@ with aba1:
         st.pyplot(fig)
 
 with aba2:
-    st.subheader("Dinâmica de Célula Excitável (Potencial de Ação)")
-    st.markdown("Simulação do disparo de um neurônio ao receber um estímulo elétrico.")
+    st.subheader("Dinâmica de Células Excitáveis (Potencial de Ação)")
+    
+    # Seletor de Tecido
+    tipo_celula = st.radio(
+        "Selecione o Tipo Celular para Simulação:", 
+        ["Neurônio (Padrão)", "Músculo Esquelético", "Músculo Cardíaco (Ventricular)"],
+        horizontal=True
+    )
 
-    # Controles específicos para o Potencial de Ação
+    st.markdown("---")
+    
     col_est1, col_est2 = st.columns(2)
     with col_est1:
-        estimulo = st.slider("Intensidade do Estímulo", 0.0, 50.0, 15.0, help="Magnitude da injeção de corrente simulada.")
+        estimulo = st.slider("Intensidade do Estímulo", 0.0, 50.0, 20.0)
     with col_est2:
-        limiar_disparo = st.number_input("Limiar de Disparo (mV)", value=-55.0, help="Voltagem necessária para abrir os canais de Sódio dependentes de voltagem.")
+        # Ajusta dinamicamente o limiar e o tempo de acordo com a célula
+        if tipo_celula == "Músculo Cardíaco (Ventricular)":
+            limiar_padrao = -40.0
+            tempo_maximo = 400  # Cardíaco precisa de muito tempo devido ao platô
+        elif tipo_celula == "Músculo Esquelético":
+            limiar_padrao = -55.0
+            tempo_maximo = 30   # Esquelético é muito rápido
+        else:
+            limiar_padrao = -55.0
+            tempo_maximo = 50   # Neurônio
+            
+        limiar_disparo = st.number_input("Limiar de Disparo (mV)", value=limiar_padrao)
 
     if st.button("⚡ Aplicar Estímulo"):
-        # Lógica de simulação adaptada do seu motor de integração
-        dt = 0.01  # Resolução em milissegundos
-        tempo_total = 50  # 50 ms de simulação total
-        tempo = np.arange(0, tempo_total, dt)
-
-        # Inicializa a voltagem com o valor de repouso atual calculado por GHK
-        v = np.full_like(tempo, Vm)
+        dt = 0.1
+        tempo = np.arange(0, tempo_maximo, dt)
+        v = np.zeros(len(tempo))
+        
+        # Define o potencial de repouso base
+        if tipo_celula in ["Músculo Cardíaco (Ventricular)", "Músculo Esquelético"]:
+            repouso_base = -90.0 # Células musculares têm repouso mais negativo (alta condutância de repouso ao K+ e Cl-)
+        else:
+            repouso_base = Vm # Usa o Vm calculado por GHK no painel lateral
+            
+        v[0] = repouso_base
+        
+        # Variáveis de estado para controlar as fases do PA
+        fase = 0 
+        tempo_fase = 0
 
         for i in range(1, len(tempo)):
-            # Aplica o estímulo exato entre os milissegundos 10 e 11
-            if 10.0 <= tempo[i] <= 11.0:
-                v[i] = v[i-1] + (estimulo * dt)
+            # Aplica o estímulo no tempo t = 5 ms
+            if 5.0 <= tempo[i] <= 6.0 and fase == 0:
+                v[i] = v[i-1] + (estimulo * dt * 10)
             else:
-                # Dinâmica do Potencial de Ação (Tudo ou Nada)
-                if v[i-1] > limiar_disparo:
-                    # Fase de despolarização rápida (Abertura de canais de Na+)
-                    if tempo[i] < 13.0:
-                        v[i] = min(v[i-1] + 300 * dt, 40.0)  # Pico fixado em aprox +40mV
-                    
-                    # Fase de repolarização (Inativação de Na+ e Abertura de canais de K+)
-                    else:
-                        v[i] = max(v[i-1] - 150 * dt, Vm - 10)  # Hiperpolarização pós-potencial
-                        
-                        # Retorno passivo ao repouso após a hiperpolarização
-                        if v[i] < Vm and tempo[i] > 20.0:
-                            v[i] = min(v[i] + 10 * dt, Vm)
-                else:
-                    # Se não atingiu o limiar, o estímulo decai passivamente de volta ao repouso
-                    v[i] = v[i-1] - (v[i-1] - Vm) * (dt / 2.0)
+                v[i] = v[i-1]
+                
+            # Dinâmica: Neurônio
+            if tipo_celula == "Neurônio (Padrão)":
+                if v[i] > limiar_disparo and fase == 0:
+                    fase = 1
+                if fase == 1: # Despolarização
+                    v[i] = min(v[i-1] + 800 * dt, 40.0)
+                    if v[i] >= 39.0: fase = 2
+                elif fase == 2: # Repolarização e Hiperpolarização
+                    v[i] = max(v[i-1] - 300 * dt, repouso_base - 10)
+                    if v[i] <= repouso_base - 9: fase = 3
+                elif fase == 3: # Retorno ao repouso
+                    v[i] = min(v[i-1] + 20 * dt, repouso_base)
+                elif fase == 0 and v[i] < limiar_disparo and v[i] > repouso_base:
+                    v[i] = max(v[i-1] - 50 * dt, repouso_base)
 
-        # Geração do Gráfico Didático
-        fig2, ax1 = plt.subplots(figsize=(10, 5))
-        
-        # Plota a linha principal do Potencial de Membrana
-        ax1.plot(tempo, v, 'purple', linewidth=2.5, label='Potencial de Membrana (Vm)')
-        
-        # Linhas de referência horizontais
-        ax1.axhline(limiar_disparo, color='red', linestyle='--', alpha=0.7, label='Limiar de Disparo')
-        ax1.axhline(Vm, color='gray', linestyle=':', alpha=0.7, label=f'Repouso ({Vm:.1f} mV)')
-        
-        # Sombreamento para destacar o momento exato do estímulo
-        ax1.axvspan(10, 11, color='yellow', alpha=0.3, label='Estímulo Aplicado')
+            # Dinâmica: Músculo Esquelético
+            elif tipo_celula == "Músculo Esquelético":
+                if v[i] > limiar_disparo and fase == 0:
+                    fase = 1
+                if fase == 1: # Despolarização ultrarrápida
+                    v[i] = min(v[i-1] + 1200 * dt, 30.0)
+                    if v[i] >= 29.0: fase = 2
+                elif fase == 2: # Repolarização rápida (sem hiperpolarização severa)
+                    v[i] = max(v[i-1] - 400 * dt, repouso_base)
+                    if v[i] <= repouso_base: fase = 3
+                elif fase == 0 and v[i] < limiar_disparo and v[i] > repouso_base:
+                    v[i] = max(v[i-1] - 80 * dt, repouso_base)
 
-        # Formatação do gráfico
-        ax1.set_xlabel('Tempo (ms)')
-        ax1.set_ylabel('Voltagem (mV)')
-        ax1.set_title('Geração do Potencial de Ação')
-        ax1.legend(loc='upper right')
-        ax1.grid(True, alpha=0.3)
+            # Dinâmica: Músculo Cardíaco
+            elif tipo_celula == "Músculo Cardíaco (Ventricular)":
+                if v[i] > limiar_disparo and fase == 0:
+                    fase = 1
+                if fase == 1: # Fase 0: Despolarização rápida (Canais rápidos de Na+)
+                    v[i] = min(v[i-1] + 500 * dt, 20.0)
+                    if v[i] >= 19.0: fase = 2
+                elif fase == 2: # Fase 1: Repolarização inicial leve
+                    v[i] = max(v[i-1] - 100 * dt, 5.0)
+                    if v[i] <= 6.0: 
+                        fase = 3
+                        tempo_fase = tempo[i]
+                elif fase == 3: # Fase 2: Platô (Entrada de Ca2+ compensa saída de K+)
+                    # Cai lentamente ao longo de ~200ms
+                    v[i] = v[i-1] - 0.05 * dt
+                    if tempo[i] - tempo_fase > 200: 
+                        fase = 4
+                elif fase == 4: # Fase 3: Repolarização rápida (Canais K+ retardados)
+                    v[i] = max(v[i-1] - 150 * dt, repouso_base)
+                elif fase == 0 and v[i] < limiar_disparo and v[i] > repouso_base:
+                    v[i] = max(v[i-1] - 30 * dt, repouso_base)
+
+        # Plotagem do Gráfico
+        fig3, ax3 = plt.subplots(figsize=(10, 5))
+        
+        cor_linha = {'Neurônio (Padrão)': 'purple', 'Músculo Esquelético': 'green', 'Músculo Cardíaco (Ventricular)': 'red'}
+        ax3.plot(tempo, v, color=cor_linha[tipo_celula], linewidth=2.5, label=f'Potencial - {tipo_celula}')
+        
+        ax3.axhline(limiar_disparo, color='orange', linestyle='--', alpha=0.7, label='Limiar')
+        ax3.axhline(repouso_base, color='gray', linestyle=':', alpha=0.7, label=f'Repouso ({repouso_base:.1f} mV)')
+        ax3.axvspan(5, 6, color='yellow', alpha=0.3, label='Estímulo')
+
+        # Anotações didáticas para a célula cardíaca
+        if tipo_celula == "Músculo Cardíaco (Ventricular)" and max(v) > 0:
+            ax3.text(8, 10, 'Fase 0 (Na+)', fontsize=9, color='red')
+            ax3.text(120, 10, 'Fase 2: Platô (Ca2+)', fontsize=10, fontweight='bold')
+            ax3.text(280, -40, 'Fase 3 (K+)', fontsize=9)
+
+        ax3.set_xlabel('Tempo (ms)')
+        ax3.set_ylabel('Voltagem (mV)')
+        ax3.set_title(f'Geração do Potencial de Ação: {tipo_celula}')
+        ax3.legend(loc='upper right')
+        ax3.grid(True, alpha=0.3)
 
         st.pyplot(fig2)
 
