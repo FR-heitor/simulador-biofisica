@@ -194,7 +194,7 @@ with aba2:
                     v[i] = max(v[i-1] - 30 * dt, repouso_base)
 
         # Plotagem do Gráfico
-        fig3, ax3 = plt.subplots(figsize=(10, 5))
+        fig2, ax3 = plt.subplots(figsize=(10, 5))
         
         cor_linha = {'Neurônio (Padrão)': 'purple', 'Músculo Esquelético': 'green', 'Músculo Cardíaco (Ventricular)': 'red'}
         ax3.plot(tempo, v, color=cor_linha[tipo_celula], linewidth=2.5, label=f'Potencial - {tipo_celula}')
