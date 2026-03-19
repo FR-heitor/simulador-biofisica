@@ -18,23 +18,24 @@ Esta plataforma foi desenvolvida para transformar fórmulas matemáticas em visu
 
 A interface está dividida em um painel lateral de **Controles** (onde você altera concentrações e permeabilidades) e uma tela principal com três abas de estudo:
 
-### 1. 📊 Potenciais de Membrana e Equilíbrio (Nernst e GHK)
+### 1. Potenciais de Membrana e Equilíbrio (Nernst e GHK)
 * **O que será apresentado:** Como o potencial de membrana em repouso ($V_m$) é um evento de ponderado, ou seja, possui dependências significativas ($E_{Na}$, $E_K$, $E_{Cl}$). 
 * **Teste:** Aumente drasticamente a permeabilidade ao Sódio ($P_{Na}$) na barra lateral e veja o $V_m$ se aproximar do potencial de equilíbrio do Sódio, simulando o início de um potencial de ação.
 
-### 2. 📈 Simulação Temporal e Correntes Iônicas
-* **O que observar:** A evolução dinâmica da célula ao longo do tempo e o fluxo real de íons (corrente elétrica) atravessando a membrana.
-* **Teste na prática:** Analise o gráfico de correntes. Note que a magnitude da corrente iônica ($I$) depende diretamente da Força Eletromotriz (a diferença entre o $V_m$ atual e o potencial de Nernst daquele íon).
-
-### 3. ⚡ Dinâmica de Células Excitáveis (Potenciais de Ação)
+### 2. Dinâmica de Células Excitáveis (Potenciais de Ação)
 Nesta aba, aplicamos estímulos elétricos virtuais para observar o comportamento de diferentes tecidos biológicos.
 * **Neurônio:** Observe o clássico disparo rápido (~2 a 5 ms) com despolarização, repolarização e a fase de hiperpolarização pós-potencial.
 * **Músculo Esquelético:** Note a diferença na velocidade. O potencial é ultrarrápido, permitindo contrações sequenciais rápidas sem um período refratário longo.
 * **Músculo Cardíaco (Ventricular):** Observe a vital **Fase de Platô** (Fase 2). O gráfico se estende por quase 300 ms devido ao influxo prolongado de Cálcio ($Ca^{2+}$), o que previne a tetanização do coração e garante o bombeamento eficiente do sangue.
 
+* ### 3. Dinâmica de Células Não-excitáveis - Simulação Temporal e Correntes Iônicas
+* **O que observar:** A evolução dinâmica da célula ao longo do tempo e o fluxo real de íons (corrente elétrica) atravessando a membrana.
+* **Teste na prática:** Analise o gráfico de correntes. Note que a magnitude da corrente iônica ($I$) depende diretamente da Força Eletromotriz (a diferença entre o $V_m$ atual e o potencial de Nernst daquele íon).
+
+
 ---
 
-## 🛠️ Como Utilizar
+## Como Utilizar
 
 1. O simulador roda diretamente no navegador, sem necessidade de instalação.
 2. Utilize a barra lateral **🎛️ Manipulação de Variáveis** para ajustar:
@@ -45,7 +46,7 @@ Nesta aba, aplicamos estímulos elétricos virtuais para observar o comportament
 
 ---
 
-## 📚 Formulário de Referência
+## Formulário de Referência
 
 A matemática rodando nos bastidores da simulação:
 
@@ -57,4 +58,4 @@ A matemática rodando nos bastidores da simulação:
 * **Lei de Ohm para Membranas (Corrente Macroscópica):** $$I = g(V_m - E_{íon})$$
 
 ---
-*Plataforma desenvolvida para o curso de Ciências Biológicas da Universidade Federal de Sergipe (CESAD/UFS). Coordenação: Prof. Dr. Heitor Franco Santos.*
+*Plataforma desenvolvida para uso em disciplinas de Biofísica e Fisiologia - UFS. Coordenação: Prof. Dr. Heitor Franco Santos.*
