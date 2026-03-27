@@ -34,18 +34,18 @@ st.sidebar.title("🎛️ Manipulação de Variáveis")
 st.sidebar.markdown("Altere os valores abaixo e veja os gráficos se atualizarem em tempo real.")
 
 st.sidebar.markdown("### Sódio (Na+)")
-Na_i = st.sidebar.slider("[Na+] Intracelular (mM)", 1.0, 50.0, 15.0)
-Na_e = st.sidebar.slider("[Na+] Extracelular (mM)", 50.0, 200.0, 145.0)
+Na_i = st.sidebar.slider("[Na+] Intracelular (mM)", 1.0, 200.0, 15.0)
+Na_e = st.sidebar.slider("[Na+] Extracelular (mM)", 1.0, 500.0, 145.0)
 P_Na = st.sidebar.slider("Permeabilidade P_Na", 0.00, 5.0, 0.05)
 
 st.sidebar.markdown("### Potássio (K+)")
-K_i = st.sidebar.slider("[K+] Intracelular (mM)", 50.0, 200.0, 150.0)
-K_e = st.sidebar.slider("[K+] Extracelular (mM)", 1.0, 20.0, 5.0)
+K_i = st.sidebar.slider("[K+] Intracelular (mM)", 1.0, 200.0, 150.0)
+K_e = st.sidebar.slider("[K+] Extracelular (mM)", 1.0, 200.0, 5.0)
 P_K = st.sidebar.slider("Permeabilidade P_K", 0.00, 5.0, 1.0)
 
 st.sidebar.markdown("### Cloreto (Cl-)")
-Cl_i = st.sidebar.slider("[Cl-] Intracelular (mM)", 1.0, 50.0, 10.0)
-Cl_e = st.sidebar.slider("[Cl-] Extracelular (mM)", 50.0, 200.0, 110.0)
+Cl_i = st.sidebar.slider("[Cl-] Intracelular (mM)", 1.0, 200.0, 10.0)
+Cl_e = st.sidebar.slider("[Cl-] Extracelular (mM)", 1.0, 200.0, 110.0)
 P_Cl = st.sidebar.slider("Permeabilidade P_Cl", 0.00, 2.0, 0.45)
 
 # --- CORPO PRINCIPAL ---
