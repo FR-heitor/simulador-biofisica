@@ -1,9 +1,7 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Tue Mar 17 14:30:39 2026
-
-@author: franc
-"""
+# ==========================================
+# DEPENDÊNCIAS NECESSÁRIAS (Instale no terminal):
+# pip install streamlit numpy scipy matplotlib
+# ==========================================
 
 import streamlit as st
 import numpy as np
@@ -11,16 +9,15 @@ import matplotlib.pyplot as plt
 from scipy.integrate import solve_ivp
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
-st.set_page_config(page_title="Simulador de Biofísica", layout="wide")
+st.set_page_config(page_title="Simulador de Biofísica Completo", layout="wide")
 
 # --- CONSTANTES FÍSICAS ---
 R = 8.314  # Constante dos gases (J/(mol·K))
 T = 310    # Temperatura absoluta (K) (37°C)
-F = 96485  # Constante de Faraday (J/mol.K.V)
+F = 96485  # Constante de Faraday (C/mol)
 
-# --- FUNÇÕES MATEMÁTICAS ---
+# --- FUNÇÕES MATEMÁTICAS ESTÁTICAS ---
 def calcular_nernst(valence, c_in, c_out):
-    # E = (RT/zF) * ln(C_out / C_in)
     return ((R * T) / (valence * F)) * np.log(c_out / c_in) * 1000
 
 def calcular_ghk(Na_i, Na_e, P_Na, K_i, K_e, P_K, Cl_i, Cl_e, P_Cl):
@@ -29,27 +26,24 @@ def calcular_ghk(Na_i, Na_e, P_Na, K_i, K_e, P_K, Cl_i, Cl_e, P_Cl):
     if den <= 0: return 0
     return ((R * T) / F) * np.log(num / den) * 1000
 
-# --- BARRA LATERAL (CONTROLES INTERATIVOS) ---
-st.sidebar.title("🎛️ Manipulação de Variáveis")
-st.sidebar.markdown("Altere os valores abaixo e veja os gráficos se atualizarem em tempo real.")
+# --- BARRA LATERAL (CONTROLES INTERATIVOS CÉLULA) ---
+st.sidebar.title("🎛️ Nível Celular (Íons)")
+st.sidebar.markdown("Parâmetros para as Abas 1, 2 e 3.")
 
 st.sidebar.markdown("### Sódio (Na+)")
-Na_i = st.sidebar.slider("[Na+] Intracelular (mM)", 1.0, 200.0, 15.0)
-Na_e = st.sidebar.slider("[Na+] Extracelular (mM)", 1.0, 500.0, 145.0)
+Na_i = st.sidebar.slider("[Na+] Intracelular (mM)", 1.0, 50.0, 15.0)
+Na_e = st.sidebar.slider("[Na+] Extracelular (mM)", 50.0, 200.0, 145.0)
 P_Na = st.sidebar.slider("Permeabilidade P_Na", 0.00, 5.0, 0.05)
 
 st.sidebar.markdown("### Potássio (K+)")
-K_i = st.sidebar.slider("[K+] Intracelular (mM)", 1.0, 200.0, 150.0)
-K_e = st.sidebar.slider("[K+] Extracelular (mM)", 1.0, 200.0, 5.0)
+K_i = st.sidebar.slider("[K+] Intracelular (mM)", 50.0, 200.0, 150.0)
+K_e = st.sidebar.slider("[K+] Extracelular (mM)", 1.0, 20.0, 5.0)
 P_K = st.sidebar.slider("Permeabilidade P_K", 0.00, 5.0, 1.0)
 
 st.sidebar.markdown("### Cloreto (Cl-)")
-Cl_i = st.sidebar.slider("[Cl-] Intracelular (mM)", 1.0, 200.0, 10.0)
-Cl_e = st.sidebar.slider("[Cl-] Extracelular (mM)", 1.0, 200.0, 110.0)
+Cl_i = st.sidebar.slider("[Cl-] Intracelular (mM)", 1.0, 50.0, 10.0)
+Cl_e = st.sidebar.slider("[Cl-] Extracelular (mM)", 50.0, 200.0, 110.0)
 P_Cl = st.sidebar.slider("Permeabilidade P_Cl", 0.00, 2.0, 0.45)
-
-# --- CORPO PRINCIPAL ---
-st.title("🔬 Simulação de parâmetros biofísicos")
 
 # Cálculos Estáticos Iniciais
 E_Na = calcular_nernst(1, Na_i, Na_e)
@@ -57,171 +51,49 @@ E_K = calcular_nernst(1, K_i, K_e)
 E_Cl = calcular_nernst(-1, Cl_i, Cl_e)
 Vm = calcular_ghk(Na_i, Na_e, P_Na, K_i, K_e, P_K, Cl_i, Cl_e, P_Cl)
 
-# Abas de visualização
-aba1, aba2, aba3 = st.tabs(["📊 Potenciais de Equilíbrio e membrana", "📈 Potencial de ação", "📈 Simulação de alterações de potencial e correntes"])
+# --- CORPO PRINCIPAL ---
+st.title("🔬 Plataforma Integrada de Biofísica")
 
+# Adicionamos a 4ª aba
+aba1, aba2, aba3, aba4 = st.tabs([
+    "📊 Equilíbrio (GHK)", 
+    "📈 Simulação (Não-Excitável)", 
+    "⚡ Excitáveis (PA)",
+    "🫀 Sinais Macroscópicos (ECG/EEG)"
+])
+
+# ==========================================================
+# ABA 1: POTENCIAIS DE EQUILÍBRIO
+# ==========================================================
 with aba1:
     col1, col2 = st.columns(2)
-    
     with col1:
-        st.subheader("Valores Calculados (Tempo Real)")
+        st.subheader("Valores Calculados")
         st.info(f"**Potencial de Membrana em Repouso (GHK):** {Vm:.2f} mV")
         st.success(f"**E_Na (Nernst):** {E_Na:.2f} mV")
         st.warning(f"**E_K (Nernst):** {E_K:.2f} mV")
         st.error(f"**E_Cl (Nernst):** {E_Cl:.2f} mV")
         
-        st.markdown("---")
-        st.markdown("**Força Eletromotriz (Driving Force):**")
-        st.markdown(f"Na+: {Vm - E_Na:.2f} mV *(Diferença entre Vm e E_Na)*")
-        st.markdown(f"K+: {Vm - E_K:.2f} mV *(Diferença entre Vm e E_K)*")
-        st.markdown(f"Cl-: {Vm - E_Cl:.2f} mV *(Diferença entre Vm e E_Cl)*")
-
     with col2:
         st.subheader("Balanço Eletroquímico")
         fig, ax = plt.subplots(figsize=(6, 4))
         ions = ['E_K', 'Vm (GHK)', 'E_Cl', 'E_Na']
         valores = [E_K, Vm, E_Cl, E_Na]
         cores = ['orange', 'blue', 'red', 'green']
-        
         ax.barh(ions, valores, color=cores)
         ax.axvline(0, color='black', linewidth=1)
         ax.set_xlabel("Potencial (mV)")
         ax.grid(axis='x', linestyle='--', alpha=0.7)
-        
         st.pyplot(fig)
 
+# ==========================================================
+# ABA 2: SIMULAÇÃO TEMPORAL (CÉLULA NÃO EXCITÁVEL)
+# ==========================================================
 with aba2:
-    st.subheader("Dinâmica de Células Excitáveis (Potencial de Ação)")
+    st.subheader("Dinâmica Iônica Base")
+    tempo_simulacao = st.slider("Duração da simulação (s)", 50, 500, 200, key="sim1")
     
-    # Seletor de Tecido
-    tipo_celula = st.radio(
-        "Selecione o Tipo Celular para Simulação:", 
-        ["Neurônio (Padrão)", "Músculo Esquelético", "Músculo Cardíaco (Ventricular)"],
-        horizontal=True
-    )
-
-    st.markdown("---")
-    
-    col_est1, col_est2 = st.columns(2)
-    with col_est1:
-        estimulo = st.slider("Intensidade do Estímulo", 0.0, 50.0, 20.0)
-    with col_est2:
-        # Ajusta dinamicamente o limiar e o tempo de acordo com a célula
-        if tipo_celula == "Músculo Cardíaco (Ventricular)":
-            limiar_padrao = -40.0
-            tempo_maximo = 400  # Cardíaco precisa de muito tempo devido ao platô
-        elif tipo_celula == "Músculo Esquelético":
-            limiar_padrao = -55.0
-            tempo_maximo = 30   # Esquelético é muito rápido
-        else:
-            limiar_padrao = -55.0
-            tempo_maximo = 50   # Neurônio
-            
-        limiar_disparo = st.number_input("Limiar de Disparo (mV)", value=limiar_padrao)
-
-    if st.button("⚡ Aplicar Estímulo"):
-        dt = 0.1
-        tempo = np.arange(0, tempo_maximo, dt)
-        v = np.zeros(len(tempo))
-        
-        # Define o potencial de repouso base
-        if tipo_celula in ["Músculo Cardíaco (Ventricular)", "Músculo Esquelético"]:
-            repouso_base = -90.0 # Células musculares têm repouso mais negativo (alta condutância de repouso ao K+ e Cl-)
-        else:
-            repouso_base = Vm # Usa o Vm calculado por GHK no painel lateral
-            
-        v[0] = repouso_base
-        
-        # Variáveis de estado para controlar as fases do PA
-        fase = 0 
-        tempo_fase = 0
-
-        for i in range(1, len(tempo)):
-            # Aplica o estímulo no tempo t = 5 ms
-            if 5.0 <= tempo[i] <= 6.0 and fase == 0:
-                v[i] = v[i-1] + (estimulo * dt * 10)
-            else:
-                v[i] = v[i-1]
-                
-            # Dinâmica: Neurônio
-            if tipo_celula == "Neurônio (Padrão)":
-                if v[i] > limiar_disparo and fase == 0:
-                    fase = 1
-                if fase == 1: # Despolarização
-                    v[i] = min(v[i-1] + 800 * dt, 40.0)
-                    if v[i] >= 39.0: fase = 2
-                elif fase == 2: # Repolarização e Hiperpolarização
-                    v[i] = max(v[i-1] - 300 * dt, repouso_base - 10)
-                    if v[i] <= repouso_base - 9: fase = 3
-                elif fase == 3: # Retorno ao repouso
-                    v[i] = min(v[i-1] + 20 * dt, repouso_base)
-                elif fase == 0 and v[i] < limiar_disparo and v[i] > repouso_base:
-                    v[i] = max(v[i-1] - 50 * dt, repouso_base)
-
-            # Dinâmica: Músculo Esquelético
-            elif tipo_celula == "Músculo Esquelético":
-                if v[i] > limiar_disparo and fase == 0:
-                    fase = 1
-                if fase == 1: # Despolarização ultrarrápida
-                    v[i] = min(v[i-1] + 1200 * dt, 30.0)
-                    if v[i] >= 29.0: fase = 2
-                elif fase == 2: # Repolarização rápida (sem hiperpolarização severa)
-                    v[i] = max(v[i-1] - 400 * dt, repouso_base)
-                    if v[i] <= repouso_base: fase = 3
-                elif fase == 0 and v[i] < limiar_disparo and v[i] > repouso_base:
-                    v[i] = max(v[i-1] - 80 * dt, repouso_base)
-
-            # Dinâmica: Músculo Cardíaco
-            elif tipo_celula == "Músculo Cardíaco (Ventricular)":
-                if v[i] > limiar_disparo and fase == 0:
-                    fase = 1
-                if fase == 1: # Fase 0: Despolarização rápida (Canais rápidos de Na+)
-                    v[i] = min(v[i-1] + 500 * dt, 20.0)
-                    if v[i] >= 19.0: fase = 2
-                elif fase == 2: # Fase 1: Repolarização inicial leve
-                    v[i] = max(v[i-1] - 100 * dt, 5.0)
-                    if v[i] <= 6.0: 
-                        fase = 3
-                        tempo_fase = tempo[i]
-                elif fase == 3: # Fase 2: Platô (Entrada de Ca2+ compensa saída de K+)
-                    # Cai lentamente ao longo de ~200ms
-                    v[i] = v[i-1] - 0.05 * dt
-                    if tempo[i] - tempo_fase > 200: 
-                        fase = 4
-                elif fase == 4: # Fase 3: Repolarização rápida (Canais K+ retardados)
-                    v[i] = max(v[i-1] - 150 * dt, repouso_base)
-                elif fase == 0 and v[i] < limiar_disparo and v[i] > repouso_base:
-                    v[i] = max(v[i-1] - 30 * dt, repouso_base)
-
-        # Plotagem do Gráfico
-        fig2, ax3 = plt.subplots(figsize=(10, 5))
-        
-        cor_linha = {'Neurônio (Padrão)': 'purple', 'Músculo Esquelético': 'green', 'Músculo Cardíaco (Ventricular)': 'red'}
-        ax3.plot(tempo, v, color=cor_linha[tipo_celula], linewidth=2.5, label=f'Potencial - {tipo_celula}')
-        
-        ax3.axhline(limiar_disparo, color='orange', linestyle='--', alpha=0.7, label='Limiar')
-        ax3.axhline(repouso_base, color='gray', linestyle=':', alpha=0.7, label=f'Repouso ({repouso_base:.1f} mV)')
-        ax3.axvspan(5, 6, color='yellow', alpha=0.3, label='Estímulo')
-
-        # Anotações didáticas para a célula cardíaca
-        if tipo_celula == "Músculo Cardíaco (Ventricular)" and max(v) > 0:
-            ax3.text(8, 10, 'Fase 0 (Na+)', fontsize=9, color='red')
-            ax3.text(120, 10, 'Fase 2: Platô (Ca2+)', fontsize=10, fontweight='bold')
-            ax3.text(280, -40, 'Fase 3 (K+)', fontsize=9)
-
-        ax3.set_xlabel('Tempo (ms)')
-        ax3.set_ylabel('Voltagem (mV)')
-        ax3.set_title(f'Geração do Potencial de Ação: {tipo_celula}')
-        ax3.legend(loc='upper right')
-        ax3.grid(True, alpha=0.3)
-
-        st.pyplot(fig2)
-
-with aba3:
-    st.subheader("Dinâmica Iônica (Célula Não-Excitável)")
-    tempo_simulacao = st.slider("Duração da simulação (segundos)", 50, 500, 200)
-    
-    if st.button("▶️ Rodar Simulação Temporal"):
+    if st.button("▶️ Rodar Simulação", key="btn1"):
         def modelo(t, y):
             Na_in, K_in, Cl_in = y
             dNa = -P_Na * (Na_in - Na_e) * 0.01
@@ -232,56 +104,263 @@ with aba3:
         t_eval = np.linspace(0, tempo_simulacao, 200)
         sol = solve_ivp(modelo, (0, tempo_simulacao), [Na_i, K_i, Cl_i], t_eval=t_eval)
 
-        # Calculando Vm e Correntes ao longo do tempo
-        vms = []
-        i_na = []
-        i_k = []
-        i_cl = []
+        vms = [calcular_ghk(sol.y[0][i], Na_e, P_Na, sol.y[1][i], K_e, P_K, sol.y[2][i], Cl_e, P_Cl) for i in range(len(sol.t))]
 
-        for i in range(len(sol.t)):
-            # Vm dinâmico
-            v_inst = calcular_ghk(sol.y[0][i], Na_e, P_Na, sol.y[1][i], K_e, P_K, sol.y[2][i], Cl_e, P_Cl)
-            vms.append(v_inst)
-            
-            # Nernst instantâneo
-            e_na_inst = calcular_nernst(1, sol.y[0][i], Na_e)
-            e_k_inst = calcular_nernst(1, sol.y[1][i], K_e)
-            e_cl_inst = calcular_nernst(-1, sol.y[2][i], Cl_e)
-            
-            # Correntes (I = g * (Vm - E))
-            i_na.append(P_Na * (v_inst - e_na_inst))
-            i_k.append(P_K * (v_inst - e_k_inst))
-            i_cl.append(P_Cl * (v_inst - e_cl_inst))
-
-        # Criando os 3 gráficos
-        fig3, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(10, 12))
-        
-        # Gráfico 1: Potencial de Membrana
-        ax1.plot(sol.t, vms, 'b-', label='Vm (GHK)', linewidth=2)
+        fig2, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8))
+        ax1.plot(sol.t, vms, 'b-', label='Vm (GHK)', lw=2)
         ax1.set_ylabel('Potencial (mV)')
-        ax1.set_title('Evolução do Potencial de Membrana')
         ax1.grid(True, alpha=0.3)
         ax1.legend()
 
-        # Gráfico 2: Concentrações
-        ax2.plot(sol.t, sol.y[0], 'g-', label='[Na+]i', linewidth=2)
-        ax2.plot(sol.t, sol.y[1], 'orange', label='[K+]i', linewidth=2)
-        ax2.plot(sol.t, sol.y[2], 'r-', label='[Cl-]i', linewidth=2)
+        ax2.plot(sol.t, sol.y[0], 'g-', label='[Na+]i', lw=2)
+        ax2.plot(sol.t, sol.y[1], 'orange', label='[K+]i', lw=2)
+        ax2.plot(sol.t, sol.y[2], 'r-', label='[Cl-]i', lw=2)
+        ax2.set_xlabel('Tempo (s)')
         ax2.set_ylabel('Concentração (mM)')
-        ax2.set_title('Evolução das Concentrações Intracelulares')
-        ax2.legend()
         ax2.grid(True, alpha=0.3)
+        ax2.legend()
+        st.pyplot(fig2)
 
-        # Gráfico 3: Correntes Iônicas
-        ax3.plot(sol.t, i_na, 'g-', label='I_Na (Corrente de Sódio)', linewidth=2)
-        ax3.plot(sol.t, i_k, 'orange', label='I_K (Corrente de Potássio)', linewidth=2)
-        ax3.plot(sol.t, i_cl, 'r-', label='I_Cl (Corrente de Cloreto)', linewidth=2)
-        ax3.axhline(0, color='black', linewidth=1, linestyle='--')
-        ax3.set_xlabel('Tempo (s)')
-        ax3.set_ylabel('Corrente Estimada')
-        ax3.set_title('Dinâmica das Correntes Iônicas')
-        ax3.legend()
-        ax3.grid(True, alpha=0.3)
+# ==========================================================
+# ABA 3: CÉLULAS EXCITÁVEIS (HODGKIN-HUXLEY & MÚSCULOS)
+# ==========================================================
+with aba3:
+    st.subheader("⚡ Eletrofisiologia de Células Excitáveis")
+    tipo_celula = st.radio(
+        "Selecione o Tecido para Estudo:", 
+        ["Neurônio (Modelo Hodgkin-Huxley)", "Músculo Esquelético", "Músculo Cardíaco (Ventricular)"],
+        horizontal=True
+    )
+    
+    col_est1, col_est2 = st.columns(2)
+    with col_est1:
+        estimulo = st.slider("Corrente de Estímulo (µA/cm²)", 0.0, 50.0, 15.0)
+    with col_est2:
+        if tipo_celula == "Músculo Cardíaco (Ventricular)":
+            tempo_maximo = st.slider("Tempo de Observação (ms)", 100, 600, 400)
+        elif tipo_celula == "Músculo Esquelético":
+            tempo_maximo = st.slider("Tempo de Observação (ms)", 10, 100, 30)
+        else:
+            tempo_maximo = st.slider("Tempo de Observação (ms)", 10, 100, 50)
 
-        plt.tight_layout()
-        st.pyplot(fig3)
+    if st.button("⚡ Simular Potencial de Ação"):
+        if tipo_celula == "Neurônio (Modelo Hodgkin-Huxley)":
+            C_m, g_Na_max, g_K_max, g_L = 1.0, 120.0, 36.0, 0.3
+            E_Na_hh, E_K_hh, E_L = 50.0, -77.0, -54.387
+
+            def a_m(V): return 0.1 * (V + 40.0) / (1.0 - np.exp(-(V + 40.0) / 10.0)) if V != -40.0 else 1.0
+            def b_m(V): return 4.0 * np.exp(-(V + 65.0) / 18.0)
+            def a_h(V): return 0.07 * np.exp(-(V + 65.0) / 20.0)
+            def b_h(V): return 1.0 / (1.0 + np.exp(-(V + 35.0) / 10.0))
+            def a_n(V): return 0.01 * (V + 55.0) / (1.0 - np.exp(-(V + 55.0) / 10.0)) if V != -55.0 else 0.1
+            def b_n(V): return 0.125 * np.exp(-(V + 65.0) / 80.0)
+
+            def hodgkin_huxley(t, y):
+                V, m, h, n = y
+                I_inj = estimulo if 5.0 <= t <= 6.0 else 0.0
+                I_Na_ion = g_Na_max * (m**3) * h * (V - E_Na_hh)
+                I_K_ion = g_K_max * (n**4) * (V - E_K_hh)
+                I_L_ion = g_L * (V - E_L)
+                dVdt = (I_inj - I_Na_ion - I_K_ion - I_L_ion) / C_m
+                return [dVdt, a_m(V)*(1.0-m)-b_m(V)*m, a_h(V)*(1.0-h)-b_h(V)*h, a_n(V)*(1.0-n)-b_n(V)*n]
+
+            V0 = -65.0
+            sol = solve_ivp(hodgkin_huxley, [0, tempo_maximo], 
+                            [V0, a_m(V0)/(a_m(V0)+b_m(V0)), a_h(V0)/(a_h(V0)+b_h(V0)), a_n(V0)/(a_n(V0)+b_n(V0))], 
+                            t_eval=np.linspace(0, tempo_maximo, 1000), method='RK45')
+
+            t, V, m, h, n = sol.t, sol.y[0], sol.y[1], sol.y[2], sol.y[3]
+            I_Na_plot = g_Na_max * (m**3) * h * (V - E_Na_hh)
+            I_K_plot = g_K_max * (n**4) * (V - E_K_hh)
+
+            fig3, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(10, 12), sharex=True)
+            ax1.plot(t, V, 'purple', lw=2)
+            ax1.set_title('Potencial de Membrana (Hodgkin-Huxley)')
+            ax1.grid(alpha=0.3)
+
+            ax2.plot(t, I_Na_plot, 'green', label='I_Na')
+            ax2.plot(t, I_K_plot, 'orange', label='I_K')
+            ax2.set_title('Correntes Iônicas')
+            ax2.grid(alpha=0.3)
+            ax2.legend()
+
+            ax3.plot(t, m, 'g-', label='m (Ativ. Na+)')
+            ax3.plot(t, h, 'r-', label='h (Inativ. Na+)')
+            ax3.plot(t, n, 'orange', label='n (Ativ. K+)')
+            ax3.set_title('Portões do Canal (Gating Variables)')
+            ax3.grid(alpha=0.3)
+            ax3.legend()
+            st.pyplot(fig3)
+
+        else:
+            # Lógica muscular (mantida da versão anterior - simplificada)
+            dt = 0.1
+            t = np.arange(0, tempo_maximo, dt)
+            V = np.full(len(t), -90.0)
+            fase, t_fase = 0, 0
+
+            for i in range(1, len(t)):
+                if 5.0 <= t[i] <= 6.0 and fase == 0: V[i] = V[i-1] + (estimulo * dt * 5)
+                else: V[i] = V[i-1]
+
+                if tipo_celula == "Músculo Esquelético":
+                    if V[i] > -55.0 and fase == 0: fase = 1
+                    if fase == 1:
+                        V[i] = min(V[i-1] + 1200 * dt, 30.0)
+                        if V[i] >= 29.0: fase = 2
+                    elif fase == 2:
+                        V[i] = max(V[i-1] - 400 * dt, -90.0)
+                        if V[i] <= -90.0: fase = 3
+                    else: V[i] = max(V[i-1] - 80 * dt, -90.0)
+                else:
+                    if V[i] > -40.0 and fase == 0: fase = 1
+                    if fase == 1:
+                        V[i] = min(V[i-1] + 500 * dt, 20.0)
+                        if V[i] >= 19.0: fase = 2
+                    elif fase == 2:
+                        V[i] = max(V[i-1] - 100 * dt, 5.0)
+                        if V[i] <= 6.0: fase, t_fase = 3, t[i]
+                    elif fase == 3:
+                        V[i] = V[i-1] - 0.05 * dt
+                        if t[i] - t_fase > 200: fase = 4
+                    elif fase == 4:
+                        V[i] = max(V[i-1] - 150 * dt, -90.0)
+                    else: V[i] = max(V[i-1] - 30 * dt, -90.0)
+
+            fig3, ax1 = plt.subplots(figsize=(10, 4))
+            cor = 'green' if "Esquelético" in tipo_celula else 'red'
+            ax1.plot(t, V, color=cor, lw=2)
+            ax1.set_title(f'Potencial de Membrana: {tipo_celula}')
+            ax1.grid(alpha=0.3)
+            st.pyplot(fig3)
+
+# ==========================================================
+# ABA 4: SINAIS MACROSCÓPICOS (ECG e EEG) - NOVA!
+# ==========================================================
+with aba4:
+    st.subheader("🫀 Eletrofisiologia Macroscópica")
+    st.markdown("A soma das atividades elétricas individuais gera assinaturas mensuráveis em órgãos e tecidos.")
+    
+    tipo_sinal = st.radio("Selecione o Exame Simulado:", ["Eletrocardiograma (ECG)", "Eletroencefalograma (EEG)"], horizontal=True)
+    st.markdown("---")
+    
+    # ------------------ LÓGICA DO ECG ------------------
+    if tipo_sinal == "Eletrocardiograma (ECG)":
+        col_ecg1, col_ecg2 = st.columns(2)
+        with col_ecg1:
+            bpm = st.slider("Frequência Cardíaca (BPM)", 40, 180, 75, help="Batimentos por minuto")
+        with col_ecg2:
+            ruido_ecg = st.slider("Artefato/Ruído Muscular (%)", 0.0, 50.0, 5.0) / 100.0
+
+        if st.button("Gerar Traçado ECG"):
+            fs = 500 # Taxa de amostragem
+            t_ecg = np.linspace(0, 5, 5 * fs) # 5 segundos de gravação
+            
+            # Cálculo do intervalo entre batimentos
+            rr_interval = 60.0 / bpm
+            
+            # Função para gerar um ciclo cardíaco padrão (P, Q, R, S, T) usando funções Gaussianas
+            def pulso_gaussiano(t, pico, largura, centro):
+                return pico * np.exp(-((t - centro) ** 2) / (2 * largura ** 2))
+            
+            ecg_signal = np.zeros_like(t_ecg)
+            
+            for i, t in enumerate(t_ecg):
+                t_ciclo = t % rr_interval # Tempo dentro do batimento atual
+                
+                # Modelagem das ondas
+                onda_p = pulso_gaussiano(t_ciclo, pico=0.25, largura=0.015, centro=0.2)
+                onda_q = pulso_gaussiano(t_ciclo, pico=-0.15, largura=0.01, centro=0.35)
+                onda_r = pulso_gaussiano(t_ciclo, pico=1.2, largura=0.015, centro=0.38)
+                onda_s = pulso_gaussiano(t_ciclo, pico=-0.25, largura=0.015, centro=0.41)
+                onda_t = pulso_gaussiano(t_ciclo, pico=0.35, largura=0.03, centro=0.6)
+                
+                ecg_signal[i] = onda_p + onda_q + onda_r + onda_s + onda_t
+            
+            # Adicionar ruído
+            ecg_signal += np.random.normal(0, ruido_ecg, len(t_ecg))
+
+            fig_ecg, ax_ecg = plt.subplots(figsize=(12, 4))
+            ax_ecg.plot(t_ecg, ecg_signal, color='#ff3333', lw=1.5)
+            ax_ecg.set_title(f'Eletrocardiograma Simulado ({bpm} BPM)')
+            ax_ecg.set_xlabel('Tempo (s)')
+            ax_ecg.set_ylabel('Amplitude (mV)')
+            
+            # Grade estilo papel de ECG clássico
+            ax_ecg.grid(True, which='both', color='red', linestyle='-', alpha=0.2)
+            ax_ecg.minorticks_on()
+            ax_ecg.grid(True, which='minor', color='red', linestyle='-', alpha=0.1)
+            
+            st.pyplot(fig_ecg)
+            
+            st.info("💡 **Conceito:** A onda **P** representa a despolarização atrial. O complexo **QRS** marca a despolarização ventricular (e o mascaramento da repolarização atrial). A onda **T** sinaliza a repolarização ventricular.")
+
+    # ------------------ LÓGICA DO EEG ------------------
+    else:
+        st.markdown("Ajuste as amplitudes das diferentes faixas de frequência (ritmos cerebrais):")
+        
+        c1, c2, c3, c4, c5 = st.columns(5)
+        with c1: delta = st.slider("Delta (1-4 Hz)", 0.0, 5.0, 1.0, help="Sono profundo")
+        with c2: theta = st.slider("Theta (4-8 Hz)", 0.0, 5.0, 0.5, help="Sonolência/Meditação")
+        with c3: alfa = st.slider("Alfa (8-13 Hz)", 0.0, 5.0, 2.5, help="Relaxado, olhos fechados")
+        with c4: beta = st.slider("Beta (13-30 Hz)", 0.0, 5.0, 1.0, help="Acordado, focado")
+        with c5: gama = st.slider("Gama (30-100 Hz)", 0.0, 5.0, 0.2, help="Processamento cognitivo")
+        
+        if st.button("Gerar Traçado EEG"):
+            fs_eeg = 250 # Amostragem EEG
+            t_eeg = np.linspace(0, 3, 3 * fs_eeg) # 3 segundos
+            
+            # Geração de ondas misturando frequências aleatórias dentro das bandas
+            def gerar_banda(amp, f_min, f_max, num_ondas=3):
+                sinal = np.zeros_like(t_eeg)
+                for _ in range(num_ondas):
+                    f = np.random.uniform(f_min, f_max)
+                    fase = np.random.uniform(0, 2*np.pi)
+                    sinal += (amp / num_ondas) * np.sin(2 * np.pi * f * t_eeg + fase)
+                return sinal
+            
+            sinal_delta = gerar_banda(delta, 1, 4)
+            sinal_theta = gerar_banda(theta, 4, 8)
+            sinal_alfa = gerar_banda(alfa, 8, 13)
+            sinal_beta = gerar_banda(beta, 13, 30)
+            sinal_gama = gerar_banda(gama, 30, 60)
+            
+            # Sinal final = soma + ruído base de fundo
+            eeg_signal = sinal_delta + sinal_theta + sinal_alfa + sinal_beta + sinal_gama
+            eeg_signal += np.random.normal(0, 0.2, len(t_eeg)) # Pequeno ruído elétrico/térmico
+
+            # Realizar a Transformada de Fourier (FFT) para análise espectral
+            fft_vals = np.abs(np.fft.rfft(eeg_signal))
+            fft_freq = np.fft.rfftfreq(len(t_eeg), d=1/fs_eeg)
+
+            # Plots
+            fig_eeg, (ax_t, ax_f) = plt.subplots(2, 1, figsize=(12, 8))
+            
+            # Traçado do Tempo
+            ax_t.plot(t_eeg, eeg_signal, color='black', lw=1.2)
+            ax_t.set_title('Traçado EEG Bruto (3 Segundos)')
+            ax_t.set_xlabel('Tempo (s)')
+            ax_t.set_ylabel('Amplitude (µV)')
+            ax_t.grid(alpha=0.3)
+            
+            # Espectro de Frequência (Análise Quantitativa)
+            # Focamos até 40Hz para melhor visualização didática
+            idx_limite = np.where(fft_freq <= 40)[0] 
+            ax_f.plot(fft_freq[idx_limite], fft_vals[idx_limite], color='blue')
+            ax_f.fill_between(fft_freq[idx_limite], fft_vals[idx_limite], color='blue', alpha=0.3)
+            
+            # Marcadores de Banda
+            ax_f.axvspan(1, 4, color='red', alpha=0.1, label='Delta')
+            ax_f.axvspan(4, 8, color='orange', alpha=0.1, label='Theta')
+            ax_f.axvspan(8, 13, color='green', alpha=0.1, label='Alfa')
+            ax_f.axvspan(13, 30, color='purple', alpha=0.1, label='Beta')
+            
+            ax_f.set_title('Espectro de Frequência (Transformada Rápida de Fourier - FFT)')
+            ax_f.set_xlabel('Frequência (Hz)')
+            ax_f.set_ylabel('Potência Relativa')
+            ax_f.legend()
+            ax_f.grid(alpha=0.3)
+            
+            st.pyplot(fig_eeg)
+            
+            st.success("🧠 **Dica Didática:** Observe como as alterações nos *sliders* afetam o padrão bruto (em cima) e deslocam os picos de frequência na análise FFT (embaixo). Isso ilustra como sistemas de neurofeedback e interfaces cérebro-máquina interpretam nosso estado mental!")
