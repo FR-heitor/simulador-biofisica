@@ -52,7 +52,7 @@ E_Cl = calcular_nernst(-1, Cl_i, Cl_e)
 Vm = calcular_ghk(Na_i, Na_e, P_Na, K_i, K_e, P_K, Cl_i, Cl_e, P_Cl)
 
 # --- CORPO PRINCIPAL ---
-st.title("🔬 Plataforma Integrada de Biofísica")
+st.title("Modelagem de parâmetros biofísicos - como respondem as células às mudanças?")
 
 # Adicionamos a 4ª aba
 aba1, aba2, aba3, aba4 = st.tabs([
@@ -125,10 +125,10 @@ with aba2:
 # ABA 3: CÉLULAS EXCITÁVEIS (HODGKIN-HUXLEY & MÚSCULOS)
 # ==========================================================
 with aba3:
-    st.subheader("⚡ Eletrofisiologia de Células Excitáveis")
+    st.subheader("⚡ Eletrofisiologia de células excitáveis")
     tipo_celula = st.radio(
-        "Selecione o Tecido para Estudo:", 
-        ["Neurônio (Modelo Hodgkin-Huxley)", "Músculo Esquelético", "Músculo Cardíaco (Ventricular)"],
+        "Selecione a célula excitável para estudo:", 
+        ["Neurônio (Modelo Hodgkin-Huxley)", "Músculo esquelético", "Músculo cardíaco (ventricular)"],
         horizontal=True
     )
     
