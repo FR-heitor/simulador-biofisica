@@ -126,19 +126,15 @@ with aba2:
 # ==========================================================
 with aba3:
     st.subheader("⚡ Eletrofisiologia de Células Excitáveis")
-    st.markdown("Análise temporal detalhada de Potenciais de Ação, Condutâncias e Correntes Iônicas.")
-    
     tipo_celula = st.radio(
         "Selecione o Tecido para Estudo:", 
         ["Neurônio (Modelo Hodgkin-Huxley)", "Músculo Esquelético", "Músculo Cardíaco (Ventricular)"],
         horizontal=True
     )
-
-    st.markdown("---")
     
     col_est1, col_est2 = st.columns(2)
     with col_est1:
-        estimulo = st.slider("Corrente de Estímulo (µA/cm²)", 0.0, 50.0, 15.0)
+        estimulo = st.slider("Corrente de Estímulo (µA/cm²)", 0.0, 50.0, 20.0, help="Aumente caso a célula não dispare.")
     with col_est2:
         if tipo_celula == "Músculo Cardíaco (Ventricular)":
             tempo_maximo = st.slider("Tempo de Observação (ms)", 100, 600, 400)
@@ -147,20 +143,15 @@ with aba3:
         else:
             tempo_maximo = st.slider("Tempo de Observação (ms)", 10, 100, 50)
 
-    if st.button("⚡ Aplicar Estímulo e Simular"):
+    if st.button("⚡ Simular Potencial de Ação"):
         
-        # 1. MODELO DE HODGKIN-HUXLEY (NEURÔNIO)
+        # ----------------------------------------------------
+        # MODELO DE HODGKIN-HUXLEY (NEURÔNIO)
+        # ----------------------------------------------------
         if tipo_celula == "Neurônio (Modelo Hodgkin-Huxley)":
-            # Parâmetros clássicos do axônio gigante da lula
-            C_m = 1.0      # µF/cm²
-            g_Na_max = 120.0 # mS/cm²
-            g_K_max = 36.0   # mS/cm²
-            g_L = 0.3        # mS/cm²
-            E_Na = 50.0      # mV
-            E_K = -77.0      # mV
-            E_L = -54.387    # mV
+            C_m, g_Na_max, g_K_max, g_L = 1.0, 120.0, 36.0, 0.3
+            E_Na_hh, E_K_hh, E_L = 50.0, -77.0, -54.387
 
-            # Funções de transição (Alphas e Betas)
             def a_m(V): return 0.1 * (V + 40.0) / (1.0 - np.exp(-(V + 40.0) / 10.0)) if V != -40.0 else 1.0
             def b_m(V): return 4.0 * np.exp(-(V + 65.0) / 18.0)
             def a_h(V): return 0.07 * np.exp(-(V + 65.0) / 20.0)
@@ -170,105 +161,95 @@ with aba3:
 
             def hodgkin_huxley(t, y):
                 V, m, h, n = y
-                I_inj = estimulo if 5.0 <= t <= 6.0 else 0.0 # Estímulo de 1ms
-                
-                I_Na = g_Na_max * (m**3) * h * (V - E_Na)
-                I_K = g_K_max * (n**4) * (V - E_K)
-                I_L = g_L * (V - E_L)
-                
-                dVdt = (I_inj - I_Na - I_K - I_L) / C_m
-                dmdt = a_m(V) * (1.0 - m) - b_m(V) * m
-                dhdt = a_h(V) * (1.0 - h) - b_h(V) * h
-                dndt = a_n(V) * (1.0 - n) - b_n(V) * n
-                return [dVdt, dmdt, dhdt, dndt]
+                I_inj = estimulo if 5.0 <= t <= 6.0 else 0.0
+                I_Na_ion = g_Na_max * (m**3) * h * (V - E_Na_hh)
+                I_K_ion = g_K_max * (n**4) * (V - E_K_hh)
+                I_L_ion = g_L * (V - E_L)
+                dVdt = (I_inj - I_Na_ion - I_K_ion - I_L_ion) / C_m
+                return [dVdt, a_m(V)*(1.0-m)-b_m(V)*m, a_h(V)*(1.0-h)-b_h(V)*h, a_n(V)*(1.0-n)-b_n(V)*n]
 
-            # Condições iniciais no repouso (-65 mV)
             V0 = -65.0
-            m0 = a_m(V0) / (a_m(V0) + b_m(V0))
-            h0 = a_h(V0) / (a_h(V0) + b_h(V0))
-            n0 = a_n(V0) / (a_n(V0) + b_n(V0))
+            sol = solve_ivp(hodgkin_huxley, [0, tempo_maximo], 
+                            [V0, a_m(V0)/(a_m(V0)+b_m(V0)), a_h(V0)/(a_h(V0)+b_h(V0)), a_n(V0)/(a_n(V0)+b_n(V0))], 
+                            t_eval=np.linspace(0, tempo_maximo, 1000), method='RK45')
 
-            t_eval = np.linspace(0, tempo_maximo, 1000)
-            sol = solve_ivp(hodgkin_huxley, [0, tempo_maximo], [V0, m0, h0, n0], t_eval=t_eval, method='RK45')
-
-            # Recuperando as variáveis resolvidas
-            t = sol.t
-            V = sol.y[0]
-            m = sol.y[1]
-            h = sol.y[2]
-            n = sol.y[3]
-
-            # Calculando Condutâncias e Correntes
-            g_Na = g_Na_max * (m**3) * h
-            g_K = g_K_max * (n**4)
-            I_Na = g_Na * (V - E_Na)
-            I_K = g_K * (V - E_K)
-
-            # --- PLOTAGEM NEURÔNIO (4 GRÁFICOS) ---
-            fig, (ax1, ax2, ax3, ax4) = plt.subplots(4, 1, figsize=(10, 16), sharex=True)
+            t, V, m, h, n = sol.t, sol.y[0], sol.y[1], sol.y[2], sol.y[3]
             
-            # 1. Potencial de Membrana
+            # Cálculo de Condutâncias e Correntes
+            g_Na_plot = g_Na_max * (m**3) * h
+            g_K_plot = g_K_max * (n**4)
+            I_Na_plot = g_Na_plot * (V - E_Na_hh)
+            I_K_plot = g_K_plot * (V - E_K_hh)
+
+            # Plota os 4 gráficos completos para Neurônio
+            fig3, (ax1, ax2, ax3, ax4) = plt.subplots(4, 1, figsize=(10, 16), sharex=True)
+            
+            # Gráfico 1: Vm
             ax1.plot(t, V, 'purple', lw=2)
-            ax1.axvspan(5, 6, color='yellow', alpha=0.3, label='Estímulo')
+            ax1.axvspan(5, 6, color='yellow', alpha=0.3, label='Estímulo Injetado')
+            ax1.set_title('Potencial de Membrana (Hodgkin-Huxley)')
             ax1.set_ylabel('Vm (mV)')
-            ax1.set_title('Modelo Hodgkin-Huxley: Potencial de Membrana')
             ax1.grid(alpha=0.3)
             ax1.legend()
 
-            # 2. Correntes
-            ax2.plot(t, I_Na, 'green', lw=2, label='I_Na (Sódio)')
-            ax2.plot(t, I_K, 'orange', lw=2, label='I_K (Potássio)')
+            # Gráfico 2: Correntes Iônicas
+            ax2.plot(t, I_Na_plot, 'green', lw=2, label='I_Na (Corrente de Sódio)')
+            ax2.plot(t, I_K_plot, 'orange', lw=2, label='I_K (Corrente de Potássio)')
             ax2.axhline(0, color='black', lw=1, ls='--')
+            ax2.set_title('Correntes Iônicas (Lei de Ohm para Membranas)')
             ax2.set_ylabel('Corrente (µA/cm²)')
-            ax2.set_title('Correntes Iônicas Transmembrana')
             ax2.grid(alpha=0.3)
             ax2.legend()
 
-            # 3. Condutâncias
-            ax3.plot(t, g_Na, 'green', lw=2, ls='--', label='g_Na')
-            ax3.plot(t, g_K, 'orange', lw=2, ls='--', label='g_K')
-            ax3.set_ylabel('Condutância (mS/cm²)')
+            # Gráfico 3: Condutâncias
+            ax3.plot(t, g_Na_plot, 'green', ls='--', lw=2, label='g_Na (Condutância do Sódio)')
+            ax3.plot(t, g_K_plot, 'orange', ls='--', lw=2, label='g_K (Condutância do Potássio)')
             ax3.set_title('Condutâncias Macroscópicas')
+            ax3.set_ylabel('g (mS/cm²)')
             ax3.grid(alpha=0.3)
             ax3.legend()
 
-            # 4. Subpartículas (m, h, n)
-            ax4.plot(t, m, 'g-', lw=2, label='m (Ativação Na+)')
-            ax4.plot(t, h, 'r-', lw=2, label='h (Inativação Na+)')
-            ax4.plot(t, n, 'orange', lw=2, label='n (Ativação K+)')
-            ax4.set_ylabel('Probabilidade (0 a 1)')
-            ax4.set_xlabel('Tempo (ms)')
+            # Gráfico 4: Portões (Gating Variables)
+            ax4.plot(t, m, 'g-', lw=2, label='m (Portão de Ativação Na+)')
+            ax4.plot(t, h, 'r-', lw=2, label='h (Portão de Inativação Na+)')
+            ax4.plot(t, n, 'orange', lw=2, label='n (Portão de Ativação K+)')
             ax4.set_title('Dinâmica das Subpartículas (Gating Variables)')
+            ax4.set_xlabel('Tempo (ms)')
+            ax4.set_ylabel('Probabilidade (0-1)')
             ax4.grid(alpha=0.3)
-            ax4.legend()
-
+            ax4.legend(loc='center right')
+            
             plt.tight_layout()
-            st.pyplot(fig)
+            st.pyplot(fig3)
 
-
-        # 2. MODELOS MUSCULARES (FENOMENOLÓGICOS COM CONDUTÂNCIA)
+        # ----------------------------------------------------
+        # MODELOS FENOMENOLÓGICOS (MÚSCULOS) - CORRIGIDOS
+        # ----------------------------------------------------
         else:
             dt = 0.1
             t = np.arange(0, tempo_maximo, dt)
             V = np.full(len(t), -90.0)
+            
+            # Vetores de condutância para Músculos
             g_Na = np.zeros(len(t))
-            g_K = np.full(len(t), 0.5) # Repouso K
+            g_K = np.full(len(t), 0.5) # Repouso condutância K+
             g_Ca = np.zeros(len(t))
             
-            fase = 0
-            t_fase = 0
+            fase, t_fase = 0, 0
 
             for i in range(1, len(t)):
-                # Estímulo
-                if 5.0 <= t[i] <= 6.0 and fase == 0:
+                # 1. Injeção da Corrente de Estímulo
+                if 5.0 <= t[i] <= 6.0 and fase == 0: 
                     V[i] = V[i-1] + (estimulo * dt * 5)
-                else:
+                else: 
                     V[i] = V[i-1]
 
+                # 2. Avaliação de Limiar e Fases - Músculo Esquelético
                 if tipo_celula == "Músculo Esquelético":
-                    if V[i] > -55.0 and fase == 0: fase = 1
+                    if V[i] >= -55.0 and fase == 0: 
+                        fase = 1
                     
-                    if fase == 1: # Spike Na+
+                    if fase == 1: # Fase de Disparo (Spike Na+)
                         g_Na[i] = 30.0
                         V[i] = min(V[i-1] + 1200 * dt, 30.0)
                         if V[i] >= 29.0: fase = 2
@@ -276,76 +257,82 @@ with aba3:
                         g_K[i] = 15.0
                         V[i] = max(V[i-1] - 400 * dt, -90.0)
                         if V[i] <= -90.0: fase = 3
-                    else:
+                    elif fase == 0 and not (5.0 <= t[i] <= 6.0): 
+                        # Correção: O decaimento passivo só ocorre se NÃO houver estímulo injetando corrente.
                         V[i] = max(V[i-1] - 80 * dt, -90.0)
-
-                elif tipo_celula == "Músculo Cardíaco (Ventricular)":
-                    if V[i] > -40.0 and fase == 0: fase = 1
+                
+                # 3. Avaliação de Limiar e Fases - Músculo Cardíaco
+                else:
+                    if V[i] >= -40.0 and fase == 0: 
+                        fase = 1
                     
-                    if fase == 1: # Fase 0: Na+
+                    if fase == 1: # Fase 0 (Despolarização Rápida)
                         g_Na[i] = 20.0
                         V[i] = min(V[i-1] + 500 * dt, 20.0)
                         if V[i] >= 19.0: fase = 2
-                    elif fase == 2: # Fase 1: Notch
+                    elif fase == 2: # Fase 1 (Notch / Repol. Inicial)
                         g_K[i] = 5.0
                         V[i] = max(V[i-1] - 100 * dt, 5.0)
-                        if V[i] <= 6.0: 
-                            fase = 3
-                            t_fase = t[i]
-                    elif fase == 3: # Fase 2: Platô (Ca2+)
-                        g_Ca[i] = 8.0  # Influxo de Cálcio
-                        g_K[i] = 2.0   # Efluxo reduzido de K
+                        if V[i] <= 6.0: fase, t_fase = 3, t[i]
+                    elif fase == 3: # Fase 2 (Platô Sustentado pelo Cálcio)
+                        g_Ca[i] = 8.0  # Ativação dos Canais L de Cálcio
+                        g_K[i] = 2.0   # Fechamento parcial transiente K+
                         V[i] = V[i-1] - 0.05 * dt
                         if t[i] - t_fase > 200: fase = 4
-                    elif fase == 4: # Fase 3: Repolarização
+                    elif fase == 4: # Fase 3 (Repolarização final)
                         g_K[i] = 10.0
                         V[i] = max(V[i-1] - 150 * dt, -90.0)
-                    else:
+                    elif fase == 0 and not (5.0 <= t[i] <= 6.0):
+                        # Correção: Protege o estímulo de ser zerado imediatamente.
                         V[i] = max(V[i-1] - 30 * dt, -90.0)
 
-            # Calculando correntes simuladas com base nas condutâncias (I = g*(V - E))
+            # 4. Cálculo de Correntes Simuladas (Lei de Ohm)
             I_Na = g_Na * (V - 50.0)
             I_K = g_K * (V - (-90.0))
-            I_Ca = g_Ca * (V - 120.0) if tipo_celula == "Músculo Cardíaco (Ventricular)" else np.zeros(len(t))
+            if tipo_celula == "Músculo Cardíaco (Ventricular)":
+                I_Ca = g_Ca * (V - 120.0) # Potencial Nernst Ca2+ ~ +120mV
+            else:
+                I_Ca = np.zeros(len(t))
 
-            # --- PLOTAGEM MUSCULAR (3 GRÁFICOS) ---
-            fig2, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(10, 12), sharex=True)
+            # --- PLOTAGEM MULTIPLA MUSCULAR (3 Gráficos) ---
+            fig3, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(10, 12), sharex=True)
             cor = 'green' if "Esquelético" in tipo_celula else 'red'
-
-            # 1. Voltagem
-            ax1.plot(t, V, color=cor, lw=2)
-            ax1.axvspan(5, 6, color='yellow', alpha=0.3)
-            ax1.set_ylabel('Vm (mV)')
+            
+            # Gráfico 1: Voltagem
+            ax1.plot(t, V, color=cor, lw=2.5)
+            ax1.axvspan(5, 6, color='yellow', alpha=0.3, label='Estímulo')
             ax1.set_title(f'Potencial de Membrana: {tipo_celula}')
+            ax1.set_ylabel('Vm (mV)')
+            ax1.legend()
             ax1.grid(alpha=0.3)
 
-            # 2. Correntes
+            # Gráfico 2: Correntes Simuladas
             ax2.plot(t, I_Na, 'green', label='I_Na')
             ax2.plot(t, I_K, 'orange', label='I_K')
             if "Cardíaco" in tipo_celula:
-                ax2.plot(t, I_Ca, 'purple', label='I_Ca (Cálcio tipo L)')
+                ax2.plot(t, I_Ca, 'purple', lw=2, label='I_Ca (Cálcio Tipo-L)')
             ax2.axhline(0, color='black', lw=1, ls='--')
-            ax2.set_ylabel('Corrente Estimada')
-            ax2.set_title('Correntes Iônicas (Simulação Fenomenológica)')
+            ax2.set_title('Correntes Iônicas (Dinâmica Simples)')
+            ax2.set_ylabel('Corrente')
             ax2.legend()
             ax2.grid(alpha=0.3)
 
-            # 3. Condutâncias
-            ax3.plot(t, g_Na, 'green', ls='--', label='g_Na')
-            ax3.plot(t, g_K, 'orange', ls='--', label='g_K')
+            # Gráfico 3: Condutâncias
+            ax3.plot(t, g_Na, 'green', ls='--', lw=2, label='g_Na')
+            ax3.plot(t, g_K, 'orange', ls='--', lw=2, label='g_K')
             if "Cardíaco" in tipo_celula:
-                ax3.plot(t, g_Ca, 'purple', ls='--', label='g_Ca')
-            ax3.set_ylabel('Condutância Relativa')
+                ax3.plot(t, g_Ca, 'purple', ls='--', lw=2, label='g_Ca')
+            ax3.set_title('Condutâncias Relativas')
             ax3.set_xlabel('Tempo (ms)')
-            ax3.set_title('Condutâncias Macroscópicas')
+            ax3.set_ylabel('Condutância (g)')
             ax3.legend()
             ax3.grid(alpha=0.3)
 
             plt.tight_layout()
-            st.pyplot(fig2)
+            st.pyplot(fig3)
 
 # ==========================================================
-# ABA 4: SINAIS MACROSCÓPICOS (ECG e EEG) - NOVA!
+# ABA 4: SINAIS MACROSCÓPICOS (ECG e EEG)
 # ==========================================================
 with aba4:
     st.subheader("🫀 Eletrofisiologia Macroscópica")
