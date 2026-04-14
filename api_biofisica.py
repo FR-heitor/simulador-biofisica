@@ -251,7 +251,7 @@ with tabs[2]:
         st.pyplot(fig)
     
     elif modo == "Eletroencefalograma (EEG)":
-        st.markdown("**Sintetizador de Ondas Cerebrais (Soma de Frequências)**")
+        st.markdown("**Ondas Cerebrais simuladas (Soma de Frequências)**")
         c1, c2, c3, c4, c5 = st.columns(5)
         with c1: delta = st.slider("Delta (1-4 Hz)", 0.0, 5.0, 1.0)
         with c2: theta = st.slider("Teta (4-8 Hz)", 0.0, 5.0, 0.5)
@@ -259,7 +259,7 @@ with tabs[2]:
         with c4: beta = st.slider("Beta (13-30 Hz)", 0.0, 5.0, 1.0)
         with c5: gama = st.slider("Gama (30-100 Hz)", 0.0, 5.0, 0.2)
         
-        fs_eeg = 250
+        fs_eeg = 500
         t_eeg = np.linspace(0, 4, 4 * fs_eeg)
         
         # Gerador de ondas por banda de frequência
@@ -296,7 +296,7 @@ with tabs[2]:
         
         # 3. Espectrograma de Frequência no Tempo
         ax3 = fig.add_subplot(gs[2])
-        Pxx_spec, freqs_spec, bins, im = ax3.specgram(eeg, NFFT=128, Fs=fs_eeg, noverlap=64, cmap='jet')
+        Pxx_spec, freqs_spec, bins, im = ax3.specgram(eeg, NFFT=2048, Fs=fs_eeg, noverlap=2048*0.9, cmap='parula')
         ax3.set_ylim(0, 40) # Foco até 40Hz
         ax3.set_title("Espectrograma (Calor Tempo-Frequência)")
         ax3.set_xlabel("Tempo (s)")
