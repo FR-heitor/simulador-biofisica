@@ -296,7 +296,7 @@ with tabs[2]:
         
         # 3. Espectrograma de Frequência no Tempo
         ax3 = fig.add_subplot(gs[2])
-        Pxx_spec, freqs_spec, bins, im = ax3.specgram(eeg, NFFT=2048, Fs=fs_eeg, noverlap=2048*0.9, cmap='viridis')
+        Pxx_spec, freqs_spec, bins, im = ax3.specgram(eeg, NFFT=2048, Fs=fs_eeg, noverlap=fs_eeg*0.9, cmap='viridis')
         ax3.set_ylim(0, 100) # Foco até 40Hz
         ax3.set_title("Espectrograma (Calor Tempo-Frequência)")
         ax3.set_xlabel("Tempo (s)")
