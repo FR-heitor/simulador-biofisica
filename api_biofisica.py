@@ -111,16 +111,50 @@ with tabs[1]:
 
             sol = solve_ivp(hh_model, [0, 50], [-65, 0.05, 0.6, 0.32], t_eval=np.linspace(0, 50, 1000))
             
-            fig, ax = plt.subplots(4, 1, figsize=(10, 16), sharex=True)
-            ax[0].plot(sol.t, sol.y[0], 'purple', lw=2); ax[0].set_ylabel("Vm (mV)"); ax[0].set_title("Potencial de Membrana")
+            # Cálculo de dados para plotagem
             gna = 120 * (sol.y[1]**3) * sol.y[2] if not ttx else np.zeros_like(sol.t)
             gk = 36 * (sol.y[3]**4) if not tea else np.zeros_like(sol.t)
-            ax[1].plot(sol.t, gna*(sol.y[0]-50), 'g', label="I_Na"); ax[1].plot(sol.t, gk*(sol.y[0]+77), 'orange', label="I_K")
-            ax[1].set_ylabel("Corrente"); ax[1].legend()
-            ax[2].plot(sol.t, gna, 'g--', label="g_Na"); ax[2].plot(sol.t, gk, 'orange', '--', label="g_K")
-            ax[2].set_ylabel("Condutância"); ax[2].legend()
-            ax[3].plot(sol.t, sol.y[1], 'g', label="m"); ax[3].plot(sol.t, sol.y[2], 'r', label="h"); ax[3].plot(sol.t, sol.y[3], 'orange', label="n")
-            ax[3].set_ylabel("Gating"); ax[3].set_xlabel("Tempo (ms)"); ax[3].legend()
+            i_na = gna * (sol.y[0] - 50.0)
+            i_k = gk * (sol.y[0] + 77.0)
+
+            # Nova arquitetura com GridSpec para colocar o Plano de Fase (V vs I) ao lado da Condutância
+            fig = plt.figure(figsize=(12, 16))
+            gs = fig.add_gridspec(4, 2)
+            ax1 = fig.add_subplot(gs[0, :])
+            ax2 = fig.add_subplot(gs[1, :])
+            ax3 = fig.add_subplot(gs[2, 0])
+            ax_vi = fig.add_subplot(gs[2, 1])
+            ax4 = fig.add_subplot(gs[3, :])
+
+            ax1.plot(sol.t, sol.y[0], 'purple', lw=2)
+            ax1.axvspan(5, 6, color='yellow', alpha=0.3, label='Estímulo Injetado')
+            ax1.set_ylabel("Vm (mV)"); ax1.set_title("Potencial de Membrana"); ax1.grid(alpha=0.3); ax1.legend()
+            
+            ax2.plot(sol.t, i_na, 'g', label="I_Na")
+            ax2.plot(sol.t, i_k, 'orange', label="I_K")
+            ax2.axhline(0, color='black', lw=1, ls='--')
+            ax2.set_ylabel("Corrente (µA/cm²)"); ax2.set_title("Correntes Iônicas (Tempo)"); ax2.grid(alpha=0.3); ax2.legend()
+            
+            ax3.plot(sol.t, gna, 'g--', label="g_Na")
+            ax3.plot(sol.t, gk, 'orange', '--', label="g_K")
+            ax3.set_ylabel("Condutância (mS/cm²)"); ax3.set_xlabel("Tempo (ms)"); ax3.set_title("Condutâncias"); ax3.grid(alpha=0.3); ax3.legend()
+            
+            # Novo Gráfico V x I (Plano de Fase)
+            ax_vi.plot(sol.y[0], i_na, 'g', label="I_Na", alpha=0.7)
+            ax_vi.plot(sol.y[0], i_k, 'orange', label="I_K", alpha=0.7)
+            ax_vi.axhline(0, color='black', lw=1, ls='--')
+            ax_vi.axvline(-77, color='orange', lw=1, ls=':', label="E_K (-77mV)")
+            ax_vi.axvline(50, color='green', lw=1, ls=':', label="E_Na (+50mV)")
+            ax_vi.set_xlabel("Voltagem Vm (mV)"); ax_vi.set_ylabel("Corrente (µA/cm²)")
+            ax_vi.set_title("Plano de Fase: V x I (Potencial de Reversão)")
+            ax_vi.grid(alpha=0.3); ax_vi.legend(fontsize='small')
+
+            ax4.plot(sol.t, sol.y[1], 'g', label="m (Ativação Na)")
+            ax4.plot(sol.t, sol.y[2], 'r', label="h (Inativação Na)")
+            ax4.plot(sol.t, sol.y[3], 'orange', label="n (Ativação K)")
+            ax4.set_ylabel("Gating (0-1)"); ax4.set_xlabel("Tempo (ms)"); ax4.set_title("Dinâmica de Gating"); ax4.grid(alpha=0.3); ax4.legend()
+            
+            plt.tight_layout()
             st.pyplot(fig)
 
         # --- MÚSCULOS ---
@@ -131,6 +165,7 @@ with tabs[1]:
             gna, gk, gca = np.zeros(1000), np.zeros(1000), np.zeros(1000)
             fase = 0; t_f = 0
             
+            # Estímulo negativo (hiperpolarização) se TTX ativo
             estimulo_aplicado = -estimulo if ttx else estimulo
 
             for i in range(1, 1000):
@@ -148,14 +183,13 @@ with tabs[1]:
                         if not tea: gk[i] = 20; v[i] = max(v[i-1] - 500*dt, -90)
                         if v[i] <= -89: fase = 3
                     elif fase == 0: 
-                        # Retorno passivo ao repouso (corrige a hiperpolarização do TTX de volta ao repouso lentamente)
+                        # Retorno passivo. Corrige hiperpolarização do TTX puxando de volta pro Vm_GHK
                         v[i] = v[i-1] - (v[i-1] - vm_ghk) * 0.1
                 
                 else: # Cardíaco
                     if v[i] > -40 and fase == 0 and not ttx: fase = 1
                     if fase == 1:
                         gna[i] = 30; v[i] = min(v[i-1] + 600*dt, 20)
-                        # AJUSTE VERAPAMIL: Pula direto para a fase 4 (repolarização) se bloqueado
                         if v[i] >= 19: fase = 4 if verapamil else 2
                     elif fase == 2:
                         v[i] = max(v[i-1] - 150*dt, 5); 
@@ -168,17 +202,48 @@ with tabs[1]:
                     elif fase == 0: 
                         v[i] = v[i-1] - (v[i-1] - vm_ghk) * 0.1
 
-            fig, ax = plt.subplots(3, 1, figsize=(10, 12), sharex=True)
+            # Correntes simuladas baseadas nas condutâncias e no Vm dinâmico
+            i_na = gna * (v - 50.0)
+            i_k = gk * (v - (-90.0))
+            i_ca = gca * (v - 120.0)
+
+            fig = plt.figure(figsize=(12, 12))
+            gs = fig.add_gridspec(3, 2)
+            ax1 = fig.add_subplot(gs[0, :])
+            ax2 = fig.add_subplot(gs[1, :])
+            ax3 = fig.add_subplot(gs[2, 0])
+            ax_vi = fig.add_subplot(gs[2, 1])
+
             cor = 'red' if "Cardíaco" in tipo_celula else 'green'
-            if ttx: cor = 'gray' # Cor neutra para refletir inatividade
+            if ttx: cor = 'gray' 
             
-            ax[0].plot(t, v, color=cor, lw=2.5); ax[0].set_ylabel("Vm (mV)")
-            ax[1].plot(t, gna*(v-50), 'g', label="I_Na"); ax[1].plot(t, gk*(v+90), 'orange', label="I_K")
-            if "Cardíaco" in tipo_celula: ax[1].plot(t, gca*(v-120), 'purple', label="I_Ca")
-            ax[1].set_ylabel("Corrente"); ax[1].legend()
-            ax[2].plot(t, gna, 'g--', label="g_Na"); ax[2].plot(t, gk, 'orange', '--', label="g_K")
-            if "Cardíaco" in tipo_celula: ax[2].plot(t, gca, 'purple', '--', label="g_Ca")
-            ax[2].set_ylabel("Condutância"); ax[2].set_xlabel("Tempo (ms)"); ax[2].legend()
+            ax1.plot(t, v, color=cor, lw=2.5)
+            ax1.axvspan(5, 7, color='yellow', alpha=0.3, label='Estímulo')
+            ax1.set_ylabel("Vm (mV)"); ax1.set_title(f"Potencial de Membrana ({tipo_celula})"); ax1.grid(alpha=0.3); ax1.legend()
+            
+            ax2.plot(t, i_na, 'g', label="I_Na")
+            ax2.plot(t, i_k, 'orange', label="I_K")
+            if "Cardíaco" in tipo_celula: ax2.plot(t, i_ca, 'purple', label="I_Ca")
+            ax2.axhline(0, color='black', lw=1, ls='--')
+            ax2.set_ylabel("Corrente"); ax2.set_title("Correntes no Tempo"); ax2.grid(alpha=0.3); ax2.legend()
+            
+            ax3.plot(t, gna, 'g--', label="g_Na")
+            ax3.plot(t, gk, 'orange', '--', label="g_K")
+            if "Cardíaco" in tipo_celula: ax3.plot(t, gca, 'purple', '--', label="g_Ca")
+            ax3.set_ylabel("Condutância"); ax3.set_xlabel("Tempo (ms)"); ax3.set_title("Condutâncias"); ax3.grid(alpha=0.3); ax3.legend()
+
+            # Novo Gráfico V x I
+            ax_vi.plot(v, i_na, 'g', alpha=0.7, label="I_Na")
+            ax_vi.plot(v, i_k, 'orange', alpha=0.7, label="I_K")
+            if "Cardíaco" in tipo_celula: ax_vi.plot(v, i_ca, 'purple', alpha=0.7, label="I_Ca")
+            ax_vi.axhline(0, color='black', lw=1, ls='--')
+            ax_vi.axvline(-90, color='orange', lw=1, ls=':', label="E_K (-90mV)")
+            ax_vi.axvline(50, color='green', lw=1, ls=':', label="E_Na (+50mV)")
+            ax_vi.set_xlabel("Voltagem Vm (mV)"); ax_vi.set_ylabel("Corrente")
+            ax_vi.set_title("Plano de Fase: V x I")
+            ax_vi.grid(alpha=0.3); ax_vi.legend(fontsize='small')
+            
+            plt.tight_layout()
             st.pyplot(fig)
 
 # ==========================================================
@@ -203,45 +268,37 @@ with tabs[2]:
         t_ecg = np.linspace(0, 5, 5 * fs)
         ecg = np.zeros_like(t_ecg)
         
-        # Pré-calcular os tempos dos batimentos (R-waves) para permitir ritmos irregulares
         beat_times = []
         curr_t = 0.5
         while curr_t < 5.0:
             beat_times.append(curr_t)
             if patologia == "Fibrilação Atrial (Patologia Atrial)":
-                curr_t += np.random.uniform(0.4, 1.2) # Ritmo irregular (RR variável)
+                curr_t += np.random.uniform(0.4, 1.2) 
             else:
                 curr_t += 60.0 / bpm
 
-        # Geração vetorial do ECG
         for bt in beat_times:
             tc = t_ecg - bt
-            # Máscara para pegar apenas uma janela ao redor do batimento
             mask = (tc > -0.3) & (tc < 0.6)
             tc_m = tc[mask]
             
             if patologia == "Taquicardia Ventricular (Patologia Ventricular)":
-                # TV: QRS largo, bizarro, sem onda P, T invertida/fundida
-                qrs = 1.5 * np.exp(-((tc_m)**2)/(2*0.06**2)) # Mais largo (0.06 vs 0.015)
+                qrs = 1.5 * np.exp(-((tc_m)**2)/(2*0.06**2))
                 t_wave = -0.6 * np.exp(-((tc_m-0.3)**2)/(2*0.05**2))
                 ecg[mask] += qrs + t_wave
             else:
-                # Normal e FA têm QRS e T semelhantes
                 qrs = 1.2 * np.exp(-((tc_m)**2)/(2*0.015**2))
                 t_wave = 0.3 * np.exp(-((tc_m-0.35)**2)/(2*0.03**2))
                 ecg[mask] += qrs + t_wave
                 
-                # Apenas Sinusal Normal tem Onda P
                 if patologia == "Ritmo Sinusal Normal":
                     p_wave = 0.2 * np.exp(-((tc_m+0.2)**2)/(2*0.015**2))
                     ecg[mask] += p_wave
 
-        # Adição da linha de base e ruídos específicos
         if patologia == "Fibrilação Atrial (Patologia Atrial)":
-            # Ondas 'f' fibrilatórias aleatórias na linha de base
             ecg += 0.05 * np.sin(2 * np.pi * 6 * t_ecg) + 0.03 * np.sin(2 * np.pi * 4.5 * t_ecg + 1)
         
-        ecg += np.random.normal(0, 0.02, len(t_ecg)) # Ruído de fundo
+        ecg += np.random.normal(0, 0.02, len(t_ecg))
         
         fig, ax = plt.subplots(figsize=(12, 4))
         ax.plot(t_ecg, ecg, 'r')
@@ -251,7 +308,7 @@ with tabs[2]:
         st.pyplot(fig)
     
     elif modo == "Eletroencefalograma (EEG)":
-        st.markdown("**Ondas Cerebrais simuladas (Soma de Frequências)**")
+        st.markdown("**Sintetizador de Ondas Cerebrais (Soma de Frequências)**")
         c1, c2, c3, c4, c5 = st.columns(5)
         with c1: delta = st.slider("Delta (1-4 Hz)", 0.0, 5.0, 1.0)
         with c2: theta = st.slider("Teta (4-8 Hz)", 0.0, 5.0, 0.5)
@@ -259,10 +316,9 @@ with tabs[2]:
         with c4: beta = st.slider("Beta (13-30 Hz)", 0.0, 5.0, 1.0)
         with c5: gama = st.slider("Gama (30-100 Hz)", 0.0, 5.0, 0.2)
         
-        fs_eeg = 500
+        fs_eeg = 250
         t_eeg = np.linspace(0, 4, 4 * fs_eeg)
         
-        # Gerador de ondas por banda de frequência
         def gerar_banda(amp, fmin, fmax):
             sinal = np.zeros_like(t_eeg)
             for _ in range(3):
@@ -275,30 +331,35 @@ with tabs[2]:
               gerar_banda(alfa, 8, 13) + gerar_banda(beta, 13, 30) + \
               gerar_banda(gama, 30, 60) + np.random.normal(0, 0.2, len(t_eeg))
         
-        # Criação de 3 Gráficos: Tempo Bruto, PSD e Espectrograma
         fig = plt.figure(figsize=(12, 10))
         gs = fig.add_gridspec(3, 1, height_ratios=[1, 1, 1.5])
         
-        # 1. Sinal Bruto no Tempo
+        # 1. Sinal Bruto
         ax1 = fig.add_subplot(gs[0])
         ax1.plot(t_eeg, eeg, color='black', lw=1)
         ax1.set_title("Sinal EEG Bruto (Tempo)")
         ax1.set_ylabel("Amplitude (µV)")
         
-        # 2. Densidade Espectral de Potência (PSD - Método de Welch)
+        # 2. PSD (Welch)
         ax2 = fig.add_subplot(gs[1])
-        f, Pxx = signal.welch(eeg, fs_eeg, nperseg=256)
-        ax2.plot(f, Pxx, color='blue')
-        ax2.fill_between(f, Pxx, color='blue', alpha=0.3)
-        ax2.set_xlim(0, 40)
+        nperseg_val = min(256, len(eeg))
+        f_welch, Pxx = signal.welch(eeg, fs_eeg, nperseg=nperseg_val)
+        ax2.plot(f_welch, Pxx, color='blue')
+        ax2.fill_between(f_welch, Pxx, color='blue', alpha=0.3)
+        ax2.set_xlim(0, 100) # Integração estendida até 100Hz
         ax2.set_title("Decomposição PSD (Densidade Espectral de Potência)")
         ax2.set_ylabel("Potência")
         
-        # 3. Espectrograma de Frequência no Tempo
+        # 3. Espectrograma de Calor (Fluido)
         ax3 = fig.add_subplot(gs[2])
-        Pxx_spec, freqs_spec, bins, im = ax3.specgram(eeg, NFFT=2048, Fs=fs_eeg, noverlap=fs_eeg*0.9*5, cmap='viridis')
-        ax3.set_ylim(0, 100) # Foco até 40Hz
-        ax3.set_title("Espectrograma (Calor Tempo-Frequência)")
+        noverlap_val = int(nperseg_val * 0.85) # Alta sobreposição para maior fluidez visual
+        f_spec, t_spec, Sxx_spec = signal.spectrogram(eeg, fs=fs_eeg, nperseg=nperseg_val, noverlap=noverlap_val)
+        Sxx_log = 10 * np.log10(Sxx_spec + 1e-10) # dB
+        
+        # pcolormesh com shading 'gouraud' cria o efeito de "ilhas de calor" suaves
+        im = ax3.pcolormesh(t_spec, f_spec, Sxx_log, shading='gouraud', cmap='turbo')
+        ax3.set_ylim(0, 100) # Até 100 Hz
+        ax3.set_title("Espectrograma Fluido (Calor Tempo-Frequência)")
         ax3.set_xlabel("Tempo (s)")
         ax3.set_ylabel("Frequência (Hz)")
         fig.colorbar(im, ax=ax3, label="Intensidade (dB)")
@@ -313,7 +374,6 @@ with tabs[2]:
         t_cmap = np.linspace(0, 20, 1000)
         cmap_signal = np.zeros_like(t_cmap)
         
-        # Artefato do estímulo (Invertido se TTX)
         artefato = (-1.0 if ttx else 1.0) * np.exp(-((t_cmap - 1.0)**2) / (2 * 0.05**2))
         cmap_signal += artefato
         
