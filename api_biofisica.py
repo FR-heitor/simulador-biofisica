@@ -5,7 +5,7 @@ from scipy.integrate import solve_ivp
 from scipy import signal
 
 # --- CONFIGURAÇÃO DO AMBIENTE ---
-st.set_page_config(page_title="Simulador de Biofísica UFS", layout="wide")
+st.set_page_config(page_title="Laboratório Virtual de Bioeletrogênese", layout="wide")
 
 # --- CONSTANTES FÍSICAS UNIVERSAIS ---
 R = 8.314  # Constante dos gases (J/(mol·K))
