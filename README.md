@@ -2,7 +2,7 @@
 
 Prof. Dr. Heitor Franco Santos - Departamento de Fisiologia - Universidade Federal de Sergipe
 
-Esse aplicativo foi desenvolvido como parte de dúvidas, falta de ferramentas mais simples e do trabalho de monitoria exercido por ex-alunos do Centro de Ciências Biológicas e da Saúde da Universidade Federal de Sergipe. Ainda é um aplicativo em desenvolvimento então alguns equívocos ainda podem ser resolvidos. Importantes figuras históricas motivaram também o seu desenvolvimento, como os Professores Dr. Murilo Marchioro e Dr. Eduardo Antônio Conde Garcia que apresentavam brilhantemente esse conteúdo apenas com suas imponentes vozes e inteligência. Saudamos a essas brilhantes mentes nossa admiração.
+O Simulador de fenômenos biofísicos celulares é um aplicativo desenvolvido pelo Professor Heitor Franco do Departamento de Fisiologia da Universidade Federal de Sergipe, como parte de dúvidas e falta de ferramentas mais simples que permitam a visualização de fenômenos da eletrofisiologia celular. Esse aplicativo vem da iniciativa do Professor Heitor com apoio dos trabalho de monitoria desenvolvido por ex-alunos do Centro de Ciências Biológicas e da Saúde da Universidade Federal de Sergipe. Ainda é um aplicativo em desenvolvimento então alguns equívocos ainda podem ser resolvidos. Importantes figuras históricas motivaram também o seu desenvolvimento, como os Professores Dr. Murilo Marchioro e Dr. Eduardo Antônio Conde Garcia que apresentavam brilhantemente esse conteúdo apenas com suas imponentes vozes e inteligência. Saudamos a essas brilhantes mentes nossa admiração.
 
 De toda forma, a ferramente possui uma licença GNU, fique livre para adaptar e reportar qualquer melhoria e desenvolvimento aprimorado do sistema.
 
