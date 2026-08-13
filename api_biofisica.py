@@ -529,4 +529,8 @@ with tabs[4]:
         ax_aud.grid(True, which='both', ls='--', alpha=0.5)
         
         st.pyplot(fig_aud)
-        st.info("💡 **Presbiacusia:** Note como a linha vermelha (idoso) despenca nas altas frequências (4k a 16kHz). Isso ocorre porque a
+        st.info(
+            "💡 **Presbiacusia:** Note como a linha vermelha (idoso) despenca nas altas frequências "
+            "(4k a 16kHz). Isso ocorre porque as células ciliadas da **base** da cóclea (que captam "
+            "agudos) sofrem desgaste acumulado ao longo da vida e morrem primeiro."
+        )
