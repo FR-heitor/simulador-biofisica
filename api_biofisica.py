@@ -55,7 +55,11 @@ vm_ghk = calc_ghk(na_i, na_e, p_na, k_i, k_e, p_k, cl_i, cl_e, p_cl)
 # --- ECRÃ PRINCIPAL ---
 st.title("🔬 Plataforma de Estudos Biofísicos")
 
-tabs = st.tabs(["📊 Repouso (GHK)", "⚡ Células Excitáveis (PA)", "🫀 Sinais Macroscópicos"])
+tabs = st.tabs(["📊 Repouso (GHK)", 
+                "⚡ Células Excitáveis (PA)", 
+                "🫀 Sinais Macroscópicos",
+               "👁️ Visão",
+               "👂 Audição"])
 
 # ==========================================================
 # ABA 1: POTENCIAL DE REPOUSO
