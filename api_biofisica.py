@@ -408,12 +408,12 @@ with tabs[3]:
     st.markdown("A captação luminosa ocorre na retina, onde os fótons ativam proteínas (opsinas), desencadeando a hiperpolarização da membrana celular através da cascata do GMPc.")
     
     col_vis1, col_vis2 = st.columns([1, 2])
-    with col1:
+    with col_vis1:
         st.markdown("### Fotorreceptores da Retina")
         st.write("**Bastonetes:** Altamente sensíveis à luz (visão escotópica). Não diferenciam cores. Abundantes na periferia da retina.")
         st.write("**Cones:** Menor sensibilidade à luz, requerem ambientes iluminados (visão fotópica). Responsáveis pela acuidade visual e visão de cores. Concentrados na fóvea.")
         
-    with col2:
+    with col_vis2:
         st.markdown("### Espectro de Absorção e Visão Comparada")
         especie_visao = st.radio("Selecione o Sistema Visual:", 
                                  ["Humanos (Tricromata)", "Abelhas (UV-Tricromata)", "Águias (Tetracromata)", "Lagartos (Tetracromata + Gotículas)"],
