@@ -76,6 +76,7 @@ with tabs[0]:
         ax.axvline(0, color='black', lw=1)
         ax.set_title("Equilíbrio de Nernst vs Realidade GHK")
         st.pyplot(fig)
+        
 
 # ==========================================================
 # ABA 2: CÉLULAS EXCITÁVEIS (PA DETALHADO)
@@ -393,3 +394,139 @@ with tabs[2]:
         ax.set_xlabel("Tempo (ms)"); ax.set_ylabel("Amplitude (mV)")
         ax.grid(True, alpha=0.3)
         st.pyplot(fig)
+
+
+# ==========================================================
+# ABA 4: BIOFÍSICA DA VISÃO
+# ==========================================================
+with tabs[3]:
+    st.subheader("👁️ Óptica Fisiológica e Fotorrecepção")
+    st.markdown("A captação luminosa ocorre na retina, onde os fótons ativam proteínas (opsinas), desencadeando a hiperpolarização da membrana celular através da cascata do GMPc.")
+    
+    col_vis1, col_vis2 = st.columns([1, 2])
+    with col1:
+        st.markdown("### Fotorreceptores da Retina")
+        st.write("**Bastonetes:** Altamente sensíveis à luz (visão escotópica). Não diferenciam cores. Abundantes na periferia da retina.")
+        st.write("**Cones:** Menor sensibilidade à luz, requerem ambientes iluminados (visão fotópica). Responsáveis pela acuidade visual e visão de cores. Concentrados na fóvea.")
+        
+    with col2:
+        st.markdown("### Espectro de Absorção e Visão Comparada")
+        especie_visao = st.radio("Selecione o Sistema Visual:", 
+                                 ["Humanos (Tricromata)", "Abelhas (UV-Tricromata)", "Águias (Tetracromata)", "Lagartos (Tetracromata + Gotículas)"],
+                                 horizontal=True)
+        
+        # Simulação de curvas Gaussianas de opsinas
+        def opsina(x, pico, largura):
+            return np.exp(-((x - pico)**2) / (2 * largura**2))
+        
+        ondas = np.linspace(300, 750, 500)
+        fig_vis, ax_vis = plt.subplots(figsize=(10, 4))
+        
+        # Colorindo o fundo com o espectro visível humano para referência
+        for wl in range(400, 701, 5):
+            cor = plt.cm.turbo((wl - 400) / 300.0) # Aproximação de cores
+            ax_vis.axvspan(wl, wl+5, color=cor, alpha=0.15)
+            
+        # Plotando as curvas baseadas na espécie
+        if especie_visao == "Humanos (Tricromata)":
+            ax_vis.plot(ondas, opsina(ondas, 420, 20), color='blue', label='Cone S (Azul)', lw=2)
+            ax_vis.plot(ondas, opsina(ondas, 534, 25), color='green', label='Cone M (Verde)', lw=2)
+            ax_vis.plot(ondas, opsina(ondas, 564, 25), color='red', label='Cone L (Vermelho)', lw=2)
+            ax_vis.plot(ondas, opsina(ondas, 498, 30), color='black', label='Bastonetes', ls='--', lw=1.5)
+            st.info("💡 **Humanos:** Visão tricromática baseada em cones S, M e L. A sobreposição permite distinguir milhões de cores.")
+            
+        elif especie_visao == "Abelhas (UV-Tricromata)":
+            ax_vis.axvspan(300, 400, color='purple', alpha=0.1, label='Zona UV')
+            ax_vis.plot(ondas, opsina(ondas, 344, 20), color='purple', label='Receptor UV', lw=2)
+            ax_vis.plot(ondas, opsina(ondas, 436, 25), color='blue', label='Receptor Azul', lw=2)
+            ax_vis.plot(ondas, opsina(ondas, 544, 30), color='green', label='Receptor Verde', lw=2)
+            st.info("💡 **Abelhas:** Enxergam luz Ultravioleta (UV), essencial para localizar néctar nas flores, mas não veem o vermelho (aparece como preto).")
+            
+        elif especie_visao == "Águias (Tetracromata)":
+            ax_vis.plot(ondas, opsina(ondas, 370, 20), color='purple', label='Cone UV/Violeta', lw=2)
+            ax_vis.plot(ondas, opsina(ondas, 430, 20), color='blue', label='Cone S', lw=2)
+            ax_vis.plot(ondas, opsina(ondas, 500, 20), color='green', label='Cone M', lw=2)
+            ax_vis.plot(ondas, opsina(ondas, 560, 20), color='red', label='Cone L', lw=2)
+            st.info("💡 **Águias:** Têm 4 tipos de cones (tetracromatas) com picos muito bem distribuídos. Altíssima densidade de receptores na fóvea confere resolução absurda.")
+            
+        elif especie_visao == "Lagartos (Tetracromata + Gotículas)":
+            # Gotículas de óleo atuam como filtros, estreitando a curva
+            ax_vis.plot(ondas, opsina(ondas, 360, 12), color='purple', label='Cone UV', lw=2)
+            ax_vis.plot(ondas, opsina(ondas, 430, 12), color='blue', label='Cone S (filtrado)', lw=2)
+            ax_vis.plot(ondas, opsina(ondas, 495, 12), color='green', label='Cone M (filtrado)', lw=2)
+            ax_vis.plot(ondas, opsina(ondas, 570, 12), color='red', label='Cone L (filtrado)', lw=2)
+            st.info("💡 **Lagartos/Aves:** Além de 4 cones, possuem micro-gotículas de óleo coloridas que filtram a luz antes de chegar à opsina, estreitando a curva (maior contraste e precisão de cores).")
+
+        ax_vis.set_xlim(300, 750)
+        ax_vis.set_title("Espectro de Absorção Fotopigmentada")
+        ax_vis.set_xlabel("Comprimento de Onda (nm)")
+        ax_vis.set_ylabel("Absorção Relativa")
+        ax_vis.legend(loc='upper right')
+        st.pyplot(fig_vis)
+
+
+# ==========================================================
+# ABA 5: BIOFÍSICA DA AUDIÇÃO
+# ==========================================================
+with tabs[4]:
+    st.subheader("👂 Acústica Fisiológica e Mecanotransdução")
+    st.markdown("O som é uma onda mecânica convertida em sinal elétrico na cóclea pelo movimento dos estereocílios das células ciliadas.")
+    
+    col_aud1, col_aud2 = st.columns([1, 2])
+    with col_aud1:
+        st.markdown("### As Células Ciliadas")
+        st.write("**Internas (CCI):** Verdadeiros receptores sensoriais (transdutores). O movimento mecânico abre canais de K+ dependentes de estiramento.")
+        st.write("**Externas (CCE):** Atuam como amplificadores cocleares. Apresentam *eletromotilidade* (encolhem e esticam via proteína prestina) para amplificar sons fracos e refinar o foco na frequência.")
+        
+        st.markdown("---")
+        st.markdown("### Espectro Sonoro Animal")
+        # Gráfico de barras de audição comparada
+        animais = ['Humano', 'Cão', 'Ave (Pombo)', 'Morcego']
+        min_hz = [20, 67, 100, 10000]
+        max_hz = [20000, 45000, 8000, 200000]
+        
+        fig_bar, ax_bar = plt.subplots(figsize=(5, 3))
+        for i in range(len(animais)):
+            ax_bar.barh(animais[i], max_hz[i] - min_hz[i], left=min_hz[i], color='teal', alpha=0.7)
+        ax_bar.set_xscale('log')
+        ax_bar.set_xlabel("Frequência (Hz) - Escala Log")
+        ax_bar.set_title("Capacidade Auditiva")
+        st.pyplot(fig_bar)
+
+    with col_aud2:
+        st.markdown("### Tonotopia e Presbiacusia (Envelhecimento)")
+        st.write("A membrana basilar da cóclea atua como um prisma acústico: a **Base** é rígida (vibra com sons agudos) e o **Ápice** é flexível (vibra com sons graves).")
+        
+        # Simulação de Audiograma Clínico
+        freqs_audiograma = [125, 250, 500, 1000, 2000, 4000, 8000, 16000]
+        
+        # Curvas de Perda Auditiva (em dB HL - quanto maior, pior a audição)
+        idade_bebe = [0, -2, 0, 0, 0, 0, 5, 5]
+        idade_jovem = [5, 5, 5, 5, 5, 10, 15, 25]
+        idade_idoso = [15, 15, 20, 25, 40, 60, 80, 110]
+        
+        fig_aud, ax_aud = plt.subplots(figsize=(10, 5))
+        
+        ax_aud.plot(freqs_audiograma, idade_bebe, 'o-', color='blue', label='Bebê (Cóclea Intacta)', lw=2)
+        ax_aud.plot(freqs_audiograma, idade_jovem, 's-', color='green', label='Jovem Adulto', lw=2)
+        ax_aud.plot(freqs_audiograma, idade_idoso, '^-', color='red', label='Idoso (Presbiacusia)', lw=2)
+        
+        # Formatando como um audiograma clínico real
+        ax_aud.set_xscale('log')
+        ax_aud.set_xticks(freqs_audiograma)
+        ax_aud.set_xticklabels(['125', '250', '500', '1k', '2k', '4k', '8k', '16k'])
+        
+        # INVERSÃO DO EIXO Y (Padrão ouro em Audiologia: 0 no topo, surdez embaixo)
+        ax_aud.set_ylim(-10, 120)
+        ax_aud.invert_yaxis()
+        
+        ax_aud.axhspan(-10, 20, color='gray', alpha=0.1, label='Audição Normal')
+        
+        ax_aud.set_title("Audiograma Clínico Simulado")
+        ax_aud.set_xlabel("Frequência do Som (Hz) - Do Grave ao Agudo")
+        ax_aud.set_ylabel("Limiar Auditivo (dB HL) - Escala Invertida")
+        ax_aud.legend(loc='lower left')
+        ax_aud.grid(True, which='both', ls='--', alpha=0.5)
+        
+        st.pyplot(fig_aud)
+        st.info("💡 **Presbiacusia:** Note como a linha vermelha (idoso) despenca nas altas frequências (4k a 16kHz). Isso ocorre porque a
