@@ -468,6 +468,56 @@ with tabs[3]:
         ax_vis.legend(loc='upper right')
         st.pyplot(fig_vis)
 
+        st.markdown("---")
+        st.markdown("### 🎨 Simulador de Ativação de Cones")
+        st.write("Deslize para alterar a cor da luz (comprimento de onda) e observe como a retina codifica essa informação através da ativação proporcional dos 3 tipos de cones humanos.")
+        
+        wl = st.slider("Comprimento de Onda da Luz (nm)", 380, 750, 500)
+        
+        # Conversão de Comprimento de Onda (Física) para Cor RGB (Visualização)
+        def wl_to_rgb(wl):
+            if 380 <= wl <= 440: r, g, b = -(wl - 440) / (440 - 380), 0.0, 1.0
+            elif 440 <= wl <= 490: r, g, b = 0.0, (wl - 440) / (490 - 440), 1.0
+            elif 490 <= wl <= 510: r, g, b = 0.0, 1.0, -(wl - 510) / (510 - 490)
+            elif 510 <= wl <= 580: r, g, b = (wl - 510) / (580 - 510), 1.0, 0.0
+            elif 580 <= wl <= 645: r, g, b = 1.0, -(wl - 645) / (645 - 580), 0.0
+            elif 645 <= wl <= 750: r, g, b = 1.0, 0.0, 0.0
+            else: r, g, b = 0.0, 0.0, 0.0
+            
+            # Ajuste de intensidade nas bordas do espectro visível
+            fator = 0.3 + 0.7*(wl - 380)/(420 - 380) if wl < 420 else (0.3 + 0.7*(750 - wl)/(750 - 700) if wl > 700 else 1.0)
+            return int((r*fator)**0.8 * 255), int((g*fator)**0.8 * 255), int((b*fator)**0.8 * 255)
+
+        r_cor, g_cor, b_cor = wl_to_rgb(wl)
+        
+        # Cálculo de ativação com base nas gaussianas do gráfico acima
+        ativ_s = opsina(wl, 420, 20)
+        ativ_m = opsina(wl, 534, 25)
+        ativ_l = opsina(wl, 564, 25)
+
+        col_cor1, col_cor2 = st.columns([1, 2])
+        with col_cor1:
+            st.markdown(f"""
+            <div style="background-color: rgb({r_cor}, {g_cor}, {b_cor});
+                        width: 100%; height: 120px; border-radius: 10px; 
+                        border: 2px solid #555; box-shadow: 2px 2px 5px rgba(0,0,0,0.3);">
+            </div>
+            <p style="text-align:center; font-weight:bold; margin-top:5px;">Luz Incidente: {wl} nm</p>
+            """, unsafe_allow_html=True)
+            
+        with col_cor2:
+            fig_ativ, ax_ativ = plt.subplots(figsize=(6, 2.5))
+            ax_ativ.barh(['Cone L (Vermelho)', 'Cone M (Verde)', 'Cone S (Azul)'], 
+                         [ativ_l, ativ_m, ativ_s], 
+                         color=['red', 'green', 'blue'])
+            ax_ativ.set_xlim(0, 1.1)
+            ax_ativ.set_xlabel("Nível de Disparo do Fotorreceptor")
+            ax_ativ.set_title("Resposta Neural da Retina Humana")
+            # Remover as bordas para um visual mais limpo
+            ax_ativ.spines['top'].set_visible(False)
+            ax_ativ.spines['right'].set_visible(False)
+            st.pyplot(fig_ativ)
+
 
 # ==========================================================
 # ABA 5: BIOFÍSICA DA AUDIÇÃO
@@ -533,8 +583,50 @@ with tabs[4]:
         ax_aud.grid(True, which='both', ls='--', alpha=0.5)
         
         st.pyplot(fig_aud)
+        
         st.info(
             "💡 **Presbiacusia:** Note como a linha vermelha (idoso) despenca nas altas frequências "
             "(4k a 16kHz). Isso ocorre porque as células ciliadas da **base** da cóclea (que captam "
             "agudos) sofrem desgaste acumulado ao longo da vida e morrem primeiro."
         )
+
+        st.markdown("---")
+        st.markdown("### 🎹 Simulador de Tonotopia Coclear")
+        st.write("A cóclea humana é desenrolada medindo cerca de 35 mm. Ao alterar a frequência da onda sonora, observe como o pico de vibração mecânica desloca-se, ativando diferentes grupos de células ciliadas.")
+
+        freq_som = st.slider("Frequência da Onda Sonora (Hz)", 20, 20000, 1000, step=10, format="%d Hz")
+        
+        # Tonotopia: Mapeamento logarítmico (20 Hz -> Ápice 35mm, 20000 Hz -> Base 0mm)
+        # Baseado na organização biomecânica da membrana basilar
+        posicao_ativada = 35 * (1 - np.log10(freq_som / 20) / np.log10(20000 / 20))
+        
+        pos = np.linspace(0, 35, 500)
+        # Criação da envoltória da onda viajante de von Békésy
+        envelope = np.exp(-((pos - posicao_ativada)**2) / (2 * 1.5**2))
+        
+        fig_tono, ax_tono = plt.subplots(figsize=(10, 3))
+        ax_tono.fill_between(pos, envelope, color='dodgerblue', alpha=0.4)
+        ax_tono.plot(pos, envelope, color='navy', lw=2)
+        
+        # Marcadores didáticos
+        ax_tono.axvline(posicao_ativada, color='red', ls='--', lw=2, label=f'Ativação Máxima ({posicao_ativada:.1f} mm)')
+        
+        # Limites da Cóclea
+        ax_tono.axvline(0, color='black', lw=1)
+        ax_tono.text(0.5, 1.1, "BASE (Janela Oval)\nSons Agudos", ha='left', fontsize=10, fontweight='bold')
+        ax_tono.axvline(35, color='black', lw=1)
+        ax_tono.text(34.5, 1.1, "ÁPICE (Helicotrema)\nSons Graves", ha='right', fontsize=10, fontweight='bold')
+
+        ax_tono.set_xlim(-2, 37)
+        ax_tono.set_ylim(0, 1.4)
+        ax_tono.set_xlabel("Distância ao longo da Membrana Basilar da Cóclea (mm)")
+        ax_tono.set_ylabel("Amplitude de Vibração")
+        ax_tono.set_yticks([]) # Oculta o eixo Y para focar no conceito
+        ax_tono.legend(loc='center right')
+        
+        # Remoção de bordas para estética
+        ax_tono.spines['top'].set_visible(False)
+        ax_tono.spines['right'].set_visible(False)
+        ax_tono.spines['left'].set_visible(False)
+
+        st.pyplot(fig_tono)
