@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.integrate import solve_ivp
 from scipy import signal
+import matplotlib.patches as patches
 
 # --- CONFIGURAÇÃO DO AMBIENTE ---
 st.set_page_config(page_title="Simulador de Biofísica UFS", layout="wide")
@@ -14,16 +15,56 @@ F = 96485  # Constante de Faraday (C/mol)
 
 # --- FUNÇÕES MATEMÁTICAS ---
 def calc_nernst(z, ci, co):
-    """Calcula o Potencial de Equilíbrio de Nernst em mV."""
     if ci <= 0 or co <= 0: return 0
     return ((R * T) / (z * F)) * np.log(co / ci) * 1000
 
 def calc_ghk(ni, ne, pn, ki, ke, pk, cli, cle, pcl):
-    """Calcula o Potencial de Membrana de Goldman-Hodgkin-Katz em mV."""
     num = (pk * ke) + (pn * ne) + (pcl * cli)
     den = (pk * ki) + (pn * ni) + (pcl * cle)
     if den <= 0: return 0
     return ((R * T) / F) * np.log(num / den) * 1000
+
+def length_to_rgb(wavelength):
+    """Converte comprimento de onda (nm) para cor RGB visível."""
+    gamma = 0.8
+    intensity_max = 255
+    factor = 0.0
+    R_val, G_val, B_val = 0, 0, 0
+
+    if 380 <= wavelength <= 440:
+        R_val = -(wavelength - 440) / (440 - 380)
+        G_val = 0.0
+        B_val = 1.0
+    elif 440 < wavelength <= 490:
+        R_val = 0.0
+        G_val = (wavelength - 440) / (490 - 440)
+        B_val = 1.0
+    elif 490 < wavelength <= 510:
+        R_val = 0.0
+        G_val = 1.0
+        B_val = -(wavelength - 510) / (510 - 490)
+    elif 510 < wavelength <= 580:
+        R_val = (wavelength - 510) / (580 - 510)
+        G_val = 1.0
+        B_val = 0.0
+    elif 580 < wavelength <= 645:
+        R_val = 1.0
+        G_val = -(wavelength - 645) / (645 - 580)
+        B_val = 0.0
+    elif 645 < wavelength <= 750:
+        R_val = 1.0
+        G_val = 0.0
+        B_val = 0.0
+
+    if 380 <= wavelength <= 420: factor = 0.3 + 0.7 * (wavelength - 380) / (420 - 380)
+    elif 420 < wavelength <= 700: factor = 1.0
+    elif 700 < wavelength <= 750: factor = 0.3 + 0.7 * (750 - wavelength) / (750 - 700)
+
+    R_rgb = int(intensity_max * ((R_val * factor) ** gamma)) if R_val > 0 else 0
+    G_rgb = int(intensity_max * ((G_val * factor) ** gamma)) if G_val > 0 else 0
+    B_rgb = int(intensity_max * ((B_val * factor) ** gamma)) if B_val > 0 else 0
+
+    return f'#{R_rgb:02x}{G_rgb:02x}{B_rgb:02x}'
 
 # --- BARRA LATERAL: PARÂMETROS E FARMACOLOGIA ---
 st.sidebar.title("🧪 Laboratório de Biofísica")
@@ -51,7 +92,6 @@ with st.sidebar.expander("Cloreto (Cl-)", expanded=True):
     cl_e = st.slider("[Cl-] Externo (mM)", 1.0, 1000.0, 110.0)
     p_cl = st.slider("Permeabilidade P_Cl", 0.0, 1.0, 0.45)
 
-# Cálculo do Potencial de Repouso Atual
 vm_ghk = calc_ghk(na_i, na_e, p_na, k_i, k_e, p_k, cl_i, cl_e, p_cl)
 
 # --- ECRÃ PRINCIPAL ---
@@ -59,10 +99,12 @@ st.title("🔬 Plataforma de Estudos Biofísicos")
 
 tabs = st.tabs([
     "📊 Repouso (GHK)", 
+    "🔌 Propriedades Passivas (RC)", 
     "⚡ Células Excitáveis (PA)", 
-    "🫀 Sinais Macroscópicos",
-    "👁️ Visão",
-    "👂 Audição"
+    "🫀 Sinais Macroscópicos", 
+    "👁️ Visão", 
+    "👂 Audição",
+    "🧠 Epilepsia"
 ])
 
 # ==========================================================
@@ -77,24 +119,85 @@ with tabs[0]:
         st.write(f"E_K: {calc_nernst(1, k_i, k_e):.1f} mV")
         st.write(f"E_Cl: {calc_nernst(-1, cl_i, cl_e):.1f} mV")
     with c2:
-        fig_repouso, ax_repouso = plt.subplots(figsize=(8, 4))
-        ax_repouso.barh(['K+', 'Vm (GHK)', 'Cl-', 'Na+'], 
-                        [calc_nernst(1, k_i, k_e), vm_ghk, calc_nernst(-1, cl_i, cl_e), calc_nernst(1, na_i, na_e)],
-                        color=['orange', 'blue', 'red', 'green'])
-        ax_repouso.axvline(0, color='black', lw=1)
-        ax_repouso.set_title("Equilíbrio de Nernst vs Realidade GHK")
-        st.pyplot(fig_repouso)
+        fig, ax = plt.subplots(figsize=(8, 4))
+        ax.barh(['K+', 'Vm (GHK)', 'Cl-', 'Na+'], 
+                [calc_nernst(1, k_i, k_e), vm_ghk, calc_nernst(-1, cl_i, cl_e), calc_nernst(1, na_i, na_e)],
+                color=['orange', 'blue', 'red', 'green'])
+        ax.axvline(0, color='black', lw=1)
+        ax.set_title("Equilíbrio de Nernst vs Realidade GHK")
+        st.pyplot(fig)
 
 # ==========================================================
-# ABA 2: CÉLULAS EXCITÁVEIS (PA DETALHADO)
+# ABA 2: CIRCUITO ELÉTRICO PASSIVO DA MEMBRANA
 # ==========================================================
 with tabs[1]:
+    st.header("🔌 Comportamento Elétrico Passivo (Circuito RC)")
+    
+    st.markdown("""
+    De acordo com o **Modelo do Mosaico Fluido** (Singer & Nicolson, 1972), a matriz lipídica atua como um isolante, 
+    separando as cargas dos meios intra e extracelular (funcionando como um **Capacitor, C**). As proteínas intrínsecas 
+    funcionam como vias condutoras de íons, conferindo resistência elétrica ao fluxo (funcionando como um **Resistor, R**).
+    
+    A resposta da célula a um pulso elétrico obedece à dinâmica de um circuito RC em paralelo, sendo a curva governada 
+    pela **Constante de Tempo da Membrana ($\tau = R \cdot C$)**.
+    """)
+    
+    col_rc1, col_rc2 = st.columns([1, 2])
+    with col_rc1:
+        st.subheader("Parâmetros do Circuito")
+        R_m = st.slider("Resistência da Membrana (Rm) [kΩ·cm²]", 0.5, 10.0, 2.0, step=0.5)
+        C_m = st.slider("Capacitância da Membrana (Cm) [µF/cm²]", 0.5, 3.0, 1.0, step=0.1)
+        
+        tau = R_m * C_m # Constante de tempo em milissegundos
+        st.success(f"**Constante de Tempo ($\tau$):** {tau:.2f} ms")
+        st.info(f"O tempo $\\tau$ ({tau:.2f} ms) é o momento em que a membrana atinge **63%** da sua carga máxima, ou cai para **37%** durante a descarga.")
+
+    with col_rc2:
+        t_rc = np.linspace(0, max(20, tau * 5), 500)
+        t_inj_start = 2.0
+        t_inj_end = t_inj_start + (tau * 3) 
+        
+        V_max = 100.0 
+        V_rc = np.zeros_like(t_rc)
+        
+        for i, t in enumerate(t_rc):
+            if t < t_inj_start:
+                V_rc[i] = 0
+            elif t_inj_start <= t <= t_inj_end:
+                t_active = t - t_inj_start
+                V_rc[i] = V_max * (1 - np.exp(-t_active / tau))
+            else:
+                t_decay = t - t_inj_end
+                V_peak = V_max * (1 - np.exp(-(t_inj_end - t_inj_start) / tau))
+                V_rc[i] = V_peak * np.exp(-t_decay / tau)
+
+        fig_rc, ax_rc = plt.subplots(figsize=(8, 4))
+        ax_rc.plot(t_rc, V_rc, 'b-', lw=2.5, label='Potencial da Membrana V(t)')
+        
+        stim_square = np.where((t_rc >= t_inj_start) & (t_rc <= t_inj_end), V_max, 0)
+        ax_rc.plot(t_rc, stim_square, 'r--', alpha=0.5, label='Pulso de Corrente (Ideal)')
+        
+        t_tau_charge = t_inj_start + tau
+        v_tau_charge = V_max * 0.63
+        ax_rc.plot(t_tau_charge, v_tau_charge, 'go', markersize=8, label=f'$\\tau$ (Carga 63%)')
+        ax_rc.vlines(t_tau_charge, 0, v_tau_charge, color='g', linestyles='dotted')
+        
+        ax_rc.set_title("Resposta Exponencial Passiva da Membrana (Carga e Descarga)")
+        ax_rc.set_xlabel("Tempo (ms)")
+        ax_rc.set_ylabel("Voltagem Relativa (%)")
+        ax_rc.grid(True, alpha=0.3)
+        ax_rc.legend()
+        st.pyplot(fig_rc)
+
+# ==========================================================
+# ABA 3: CÉLULAS EXCITÁVEIS (PA DETALHADO)
+# ==========================================================
+with tabs[2]:
     tipo_celula = st.radio("Selecione o Tecido:", ["Neurônio (Hodgkin-Huxley)", "Músculo Esquelético", "Músculo Cardíaco"], horizontal=True)
-    st.info(f"O Repouso inicial é de {vm_ghk:.1f} mV.")
+    st.info(f"O Repouso inicial é de {vm_ghk:.1f} mV. Lembre-se: O TTX inverte o estímulo causando hiperpolarização.")
     estimulo = st.slider("Intensidade do Estímulo Elétrico", 0.0, 50.0, 20.0)
 
     if st.button("⚡ Executar Simulação de Potencial de Ação"):
-        
         if tipo_celula == "Neurônio (Hodgkin-Huxley)":
             def hh_model(t, y):
                 V, m, h, n = y
@@ -102,6 +205,7 @@ with tabs[1]:
                 g_k = 36.0 if not tea else 0.0
                 g_l, e_na, e_k, e_l = 0.3, 50.0, -77.0, -54.4
                 
+                # Se TTX ativo, estímulo causa hiperpolarização profunda como proteção
                 estimulo_aplicado = -estimulo if ttx else estimulo
                 i_inj = estimulo_aplicado if 5.0 <= t <= 6.0 else 0.0
                 
@@ -122,13 +226,13 @@ with tabs[1]:
             i_na = gna * (sol.y[0] - 50.0)
             i_k = gk * (sol.y[0] + 77.0)
 
-            fig_hh = plt.figure(figsize=(12, 16))
-            gs = fig_hh.add_gridspec(4, 2)
-            ax1 = fig_hh.add_subplot(gs[0, :])
-            ax2 = fig_hh.add_subplot(gs[1, :])
-            ax3 = fig_hh.add_subplot(gs[2, 0])
-            ax_vi = fig_hh.add_subplot(gs[2, 1])
-            ax4 = fig_hh.add_subplot(gs[3, :])
+            fig = plt.figure(figsize=(12, 16))
+            gs = fig.add_gridspec(4, 2)
+            ax1 = fig.add_subplot(gs[0, :])
+            ax2 = fig.add_subplot(gs[1, :])
+            ax3 = fig.add_subplot(gs[2, 0])
+            ax_vi = fig.add_subplot(gs[2, 1])
+            ax4 = fig.add_subplot(gs[3, :])
 
             ax1.plot(sol.t, sol.y[0], 'purple', lw=2)
             ax1.axvspan(5, 6, color='yellow', alpha=0.3, label='Estímulo Injetado')
@@ -149,7 +253,7 @@ with tabs[1]:
             ax_vi.axvline(-77, color='orange', lw=1, ls=':', label="E_K (-77mV)")
             ax_vi.axvline(50, color='green', lw=1, ls=':', label="E_Na (+50mV)")
             ax_vi.set_xlabel("Voltagem Vm (mV)"); ax_vi.set_ylabel("Corrente (µA/cm²)")
-            ax_vi.set_title("Plano de Fase: V x I")
+            ax_vi.set_title("Plano de Fase: V x I (Potencial de Reversão)")
             ax_vi.grid(alpha=0.3); ax_vi.legend(fontsize='small')
 
             ax4.plot(sol.t, sol.y[1], 'g', label="m (Ativação Na)")
@@ -158,7 +262,7 @@ with tabs[1]:
             ax4.set_ylabel("Gating (0-1)"); ax4.set_xlabel("Tempo (ms)"); ax4.set_title("Dinâmica de Gating"); ax4.grid(alpha=0.3); ax4.legend()
             
             plt.tight_layout()
-            st.pyplot(fig_hh)
+            st.pyplot(fig)
 
         else:
             t_max = 400 if tipo_celula == "Músculo Cardíaco" else 50
@@ -167,6 +271,7 @@ with tabs[1]:
             gna, gk, gca = np.zeros(1000), np.zeros(1000), np.zeros(1000)
             fase = 0; t_f = 0
             
+            # TTX inverte o estímulo (gera hiperpolarização)
             estimulo_aplicado = -estimulo if ttx else estimulo
 
             for i in range(1, 1000):
@@ -186,7 +291,7 @@ with tabs[1]:
                     elif fase == 0: 
                         v[i] = v[i-1] - (v[i-1] - vm_ghk) * 0.1
                 
-                else: # Cardíaco
+                else:
                     if v[i] > -40 and fase == 0 and not ttx: fase = 1
                     if fase == 1:
                         gna[i] = 30; v[i] = min(v[i-1] + 600*dt, 20)
@@ -206,12 +311,12 @@ with tabs[1]:
             i_k = gk * (v - (-90.0))
             i_ca = gca * (v - 120.0)
 
-            fig_musc = plt.figure(figsize=(12, 12))
-            gs_musc = fig_musc.add_gridspec(3, 2)
-            ax1 = fig_musc.add_subplot(gs_musc[0, :])
-            ax2 = fig_musc.add_subplot(gs_musc[1, :])
-            ax3 = fig_musc.add_subplot(gs_musc[2, 0])
-            ax_vi = fig_musc.add_subplot(gs_musc[2, 1])
+            fig = plt.figure(figsize=(12, 12))
+            gs = fig.add_gridspec(3, 2)
+            ax1 = fig.add_subplot(gs[0, :])
+            ax2 = fig.add_subplot(gs[1, :])
+            ax3 = fig.add_subplot(gs[2, 0])
+            ax_vi = fig.add_subplot(gs[2, 1])
 
             cor = 'red' if "Cardíaco" in tipo_celula else 'green'
             if ttx: cor = 'gray' 
@@ -242,44 +347,34 @@ with tabs[1]:
             ax_vi.grid(alpha=0.3); ax_vi.legend(fontsize='small')
             
             plt.tight_layout()
-            st.pyplot(fig_musc)
+            st.pyplot(fig)
 
 # ==========================================================
-# ABA 3: SINAIS MACROSCÓPICOS (ECG / EEG / EMG)
+# ABA 4: SINAIS MACROSCÓPICOS (ECG / EEG / EMG)
 # ==========================================================
-with tabs[2]:
+with tabs[3]:
     st.subheader("Simulação de Bio-sinais Macroscópicos")
     modo = st.radio("Selecione o Exame:", ["Eletrocardiograma (ECG)", "Eletroencefalograma (EEG)", "Eletromiograma (EMG / CMAP)"], horizontal=True)
     st.markdown("---")
     
     if modo == "Eletrocardiograma (ECG)":
-        patologia = st.selectbox("Condição Cardíaca:", [
-            "Ritmo Sinusal Normal", 
-            "Fibrilação Atrial (Patologia Atrial)", 
-            "Taquicardia Ventricular (Patologia Ventricular)"
-        ])
-        
+        patologia = st.selectbox("Condição Cardíaca:", ["Ritmo Sinusal Normal", "Fibrilação Atrial (Patologia Atrial)", "Taquicardia Ventricular (Patologia Ventricular)"])
         bpm = 75 if patologia == "Ritmo Sinusal Normal" else (160 if "Taquicardia" in patologia else 90)
         bpm = st.slider("Frequência Cardíaca Média (BPM)", 40, 200, bpm)
-        
         fs = 500
         t_ecg = np.linspace(0, 5, 5 * fs)
         ecg = np.zeros_like(t_ecg)
-        
         beat_times = []
         curr_t = 0.5
         while curr_t < 5.0:
             beat_times.append(curr_t)
-            if patologia == "Fibrilação Atrial (Patologia Atrial)":
-                curr_t += np.random.uniform(0.4, 1.2) 
-            else:
-                curr_t += 60.0 / bpm
+            if patologia == "Fibrilação Atrial (Patologia Atrial)": curr_t += np.random.uniform(0.4, 1.2) 
+            else: curr_t += 60.0 / bpm
 
         for bt in beat_times:
             tc = t_ecg - bt
             mask = (tc > -0.3) & (tc < 0.6)
             tc_m = tc[mask]
-            
             if patologia == "Taquicardia Ventricular (Patologia Ventricular)":
                 qrs = 1.5 * np.exp(-((tc_m)**2)/(2*0.06**2))
                 t_wave = -0.6 * np.exp(-((tc_m-0.3)**2)/(2*0.05**2))
@@ -288,14 +383,12 @@ with tabs[2]:
                 qrs = 1.2 * np.exp(-((tc_m)**2)/(2*0.015**2))
                 t_wave = 0.3 * np.exp(-((tc_m-0.35)**2)/(2*0.03**2))
                 ecg[mask] += qrs + t_wave
-                
                 if patologia == "Ritmo Sinusal Normal":
                     p_wave = 0.2 * np.exp(-((tc_m+0.2)**2)/(2*0.015**2))
                     ecg[mask] += p_wave
 
         if patologia == "Fibrilação Atrial (Patologia Atrial)":
             ecg += 0.05 * np.sin(2 * np.pi * 6 * t_ecg) + 0.03 * np.sin(2 * np.pi * 4.5 * t_ecg + 1)
-        
         ecg += np.random.normal(0, 0.02, len(t_ecg))
         
         fig, ax = plt.subplots(figsize=(12, 4))
@@ -306,124 +399,82 @@ with tabs[2]:
         st.pyplot(fig)
     
     elif modo == "Eletroencefalograma (EEG)":
-        st.markdown("**Sintetizador de Ondas Cerebrais (Soma de Frequências)**")
-        c1, c2, c3, c4, c5 = st.columns(5)
-        with c1: delta = st.slider("Delta (1-4 Hz)", 0.0, 5.0, 1.0)
-        with c2: theta = st.slider("Teta (4-8 Hz)", 0.0, 5.0, 0.5)
-        with c3: alfa = st.slider("Alfa (8-13 Hz)", 0.0, 5.0, 3.0)
-        with c4: beta = st.slider("Beta (13-30 Hz)", 0.0, 5.0, 1.0)
-        with c5: gama = st.slider("Gama (30-100 Hz)", 0.0, 5.0, 0.2)
+        st.markdown("""
+        ### Neurociência Sistêmica e Codificação Preditiva
+        O cérebro atua ativamente para **cancelar estímulos previsíveis** e economizar energia metabólica. 
+        Abaixo, você pode aplicar estímulos repetitivos. Observe como o interneurônio inibitório **aprende** o ritmo 
+        e começa a disparar antecipadamente, suprimindo o neurônio excitatório cortical e o sinal do EEG.
+        """)
         
-        st.markdown("---")
-        st.markdown("### 🧠 Modulação Sensorial e Codificação Preditiva (Habituação)")
-        st.write("Aplique um estímulo que se repete a cada segundo. O cérebro é uma máquina preditiva: após o primeiro estímulo, ele recruta **redes inibitórias antecipatórias** que cancelam o sinal no córtex, resultando em menor atividade no EEG (Habituação).")
+        c1, c2, c3 = st.columns(3)
+        with c1: 
+            tipo_est = st.radio("Modalidade Sensorial:", ["Calor", "Pressão", "Dor"])
+        with c2:
+            if tipo_est == "Calor": 
+                intensidade = st.slider("Temperatura (°C)", 36.0, 45.0, 39.0)
+                int_norm = (intensidade - 36) / 9.0
+            elif tipo_est == "Pressão": 
+                intensidade = st.slider("Pressão (kPa)", 0, 100, 50)
+                int_norm = intensidade / 100.0
+            else: 
+                intensidade = st.select_slider("Escala Visual de Dor (EVA)", options=["😃", "🙂", "😐", "😟", "😫", "😭"], value="😟")
+                mapping = {"😃":0.0, "🙂":0.2, "😐":0.4, "😟":0.6, "😫":0.8, "😭":1.0}
+                int_norm = mapping[intensidade]
         
-        col_s1, col_s2 = st.columns(2)
-        with col_s1:
-            tipo_estimulo = st.selectbox("Modalidade Sensorial:", ["Calor (Termorreceptores)", "Pressão (Mecanoreceptores)", "Dor (Nociceptores)"])
-        with col_s2:
-            if tipo_estimulo == "Calor (Termorreceptores)":
-                intensidade = st.slider("Temperatura Aplicada (°C)", 36.0, 50.0, 42.0)
-                fator_int = max(0.0, (intensidade - 36) / 14.0) 
-            elif tipo_estimulo == "Pressão (Mecanoreceptores)":
-                intensidade = st.slider("Pressão Aplicada (kPa)", 1, 100, 50)
-                fator_int = intensidade / 100.0
-            else:
-                escala_dor = st.select_slider("Escala Visual Analógica de Dor (EVA)", 
-                                              options=["😀 0", "🙂 2", "😐 4", "😟 6", "😫 8", "😭 10"], value="😟 6")
-                fator_int = int(escala_dor.split(" ")[1]) / 10.0
-
-        if st.button("Gerar EEG e Rede Neural Sensorial"):
-            fs_eeg = 250
-            t_eeg = np.linspace(0, 4, 4 * fs_eeg)
+        fs_eeg = 250
+        t_eeg = np.linspace(0, 4, 4 * fs_eeg)
+        eeg_bg = np.random.normal(0, 0.1, len(t_eeg)) + 0.5*np.sin(2*np.pi*10*t_eeg)
+        
+        t_sim = np.linspace(0, 4000, 4 * fs_eeg)
+        n_aferente = np.zeros_like(t_sim) - 70
+        n_inibitorio = np.zeros_like(t_sim) - 70
+        n_cortical = np.zeros_like(t_sim) - 70
+        erp_sinal = np.zeros_like(t_eeg)
+        
+        stim_times = [500, 1500, 2500, 3500] 
+        aprendizado = [0.0, 0.3, 0.7, 0.95] 
+        
+        for idx, s_time in enumerate(stim_times):
+            pico = int(s_time / (4000 / len(t_sim)))
+            if pico < len(n_aferente): n_aferente[pico:pico+10] = 30 * int_norm
             
-            def gerar_banda(amp, fmin, fmax):
-                sinal = np.zeros_like(t_eeg)
-                for _ in range(3):
-                    f = np.random.uniform(fmin, fmax)
-                    fase = np.random.uniform(0, 2*np.pi)
-                    sinal += (amp/3) * np.sin(2*np.pi*f*t_eeg + fase)
-                return sinal
+            ante_pico = pico - int(50 * aprendizado[idx]) 
+            if ante_pico > 0 and ante_pico < len(n_inibitorio):
+                n_inibitorio[ante_pico:ante_pico+10] = 30 * aprendizado[idx]
+            
+            forga_cortical = max(0, int_norm - aprendizado[idx])
+            if pico < len(n_cortical):
+                n_cortical[pico:pico+15] = 30 * forga_cortical
                 
-            eeg = gerar_banda(delta, 1, 4) + gerar_banda(theta, 4, 8) + \
-                  gerar_banda(alfa, 8, 13) + gerar_banda(beta, 13, 30) + \
-                  gerar_banda(gama, 30, 60) + np.random.normal(0, 0.2, len(t_eeg))
-
-            tempos_est = [0.5, 1.5, 2.5, 3.5]
-            amp_sensorial = [1.0, 1.0, 1.0, 1.0]      
-            amp_inibitoria = [0.1, 0.6, 0.9, 1.0]     
-            amp_exc_cortical = [1.0, 0.4, 0.1, 0.05]  
-
-            v_sens = np.full(len(t_eeg), -70.0)
-            v_inib = np.full(len(t_eeg), -70.0)
-            v_cort = np.full(len(t_eeg), -70.0)
+            erp_shape = 5.0 * forga_cortical * np.exp(-((t_eeg - (s_time/1000))**2)/(2*0.05**2))
+            erp_sinal += erp_shape
             
-            for idx, t_s in enumerate(tempos_est):
-                mask_sens = (t_eeg >= t_s) & (t_eeg < t_s + 0.15)
-                spikes_s = signal.square(2 * np.pi * 60 * t_eeg[mask_sens])
-                v_sens[mask_sens] += (spikes_s + 1) * 20 * amp_sensorial[idx] * fator_int
+        eeg_final = eeg_bg + erp_sinal
+        
+        for arr in [n_aferente, n_inibitorio, n_cortical]:
+            for i in range(1, len(arr)):
+                if arr[i] == -70 and arr[i-1] > -70: arr[i] = arr[i-1] - 5
+                elif arr[i] < -70: arr[i] = -70
 
-                mask_i = (t_eeg >= t_s - 0.05) & (t_eeg < t_s + 0.2)
-                spikes_i = signal.square(2 * np.pi * 50 * t_eeg[mask_i])
-                v_inib[mask_i] += (spikes_i + 1) * 20 * amp_inibitoria[idx] * fator_int
-
-                mask_c = (t_eeg >= t_s + 0.02) & (t_eeg < t_s + 0.18)
-                spikes_c = signal.square(2 * np.pi * 40 * t_eeg[mask_c])
-                v_cort[mask_c] += (spikes_c + 1) * 20 * amp_exc_cortical[idx] * fator_int
-
-                tc = t_eeg - t_s
-                mask_erp = (tc >= 0) & (tc < 0.5)
-                erp = (20 * np.exp(-((tc[mask_erp] - 0.1)**2) / 0.005) - 
-                       10 * np.exp(-((tc[mask_erp] - 0.25)**2) / 0.01))
-                eeg[mask_erp] += erp * amp_exc_cortical[idx] * fator_int
-
-            st.markdown("#### Dinâmica de Rede Neural (Micro-Escala)")
-            fig_net, (ax_s, ax_i, ax_c) = plt.subplots(3, 1, figsize=(12, 6), sharex=True)
-            
-            for t_s in tempos_est:
-                for ax in [ax_s, ax_i, ax_c]:
-                    ax.axvline(t_s, color='red', ls='--', alpha=0.5)
-
-            ax_s.plot(t_eeg, v_sens, 'green', lw=1.5); ax_s.set_title(f"Aferência Sensorial - {tipo_estimulo}"); ax_s.set_ylabel("Vm")
-            ax_i.plot(t_eeg, v_inib, 'blue', lw=1.5); ax_i.set_title("Interneurônio Inibitório (Predição)"); ax_i.set_ylabel("Vm")
-            ax_c.plot(t_eeg, v_cort, 'purple', lw=1.5); ax_c.set_title("Neurônio Cortical (Erro de Predição)"); ax_c.set_ylabel("Vm"); ax_c.set_xlabel("Tempo (s)")
-            
-            for ax in [ax_s, ax_i, ax_c]: ax.grid(alpha=0.3); ax.set_ylim(-80, 20)
-            plt.tight_layout()
-            st.pyplot(fig_net)
-
-            st.markdown("#### Potencial de Campo Registrado (Macro-Escala)")
-            fig = plt.figure(figsize=(12, 10))
-            gs = fig.add_gridspec(3, 1, height_ratios=[1, 1, 1.5])
-            
-            ax1 = fig.add_subplot(gs[0])
-            ax1.plot(t_eeg, eeg, color='black', lw=1)
-            for t_s in tempos_est: ax1.axvline(t_s, color='red', ls='--', alpha=0.5)
-            ax1.set_title("Sinal EEG Bruto (Notar Habituação)")
-            ax1.set_ylabel("Amplitude (µV)")
-            
-            ax2 = fig.add_subplot(gs[1])
-            nperseg_val = min(256, len(eeg))
-            f_welch, Pxx = signal.welch(eeg, fs_eeg, nperseg=nperseg_val)
-            ax2.plot(f_welch, Pxx, color='blue')
-            ax2.fill_between(f_welch, Pxx, color='blue', alpha=0.3)
-            ax2.set_xlim(0, 100) 
-            ax2.set_title("Decomposição PSD (Densidade Espectral de Potência)")
-            ax2.set_ylabel("Potência")
-            
-            ax3 = fig.add_subplot(gs[2])
-            noverlap_val = int(nperseg_val * 0.85) 
-            f_spec, t_spec, Sxx_spec = signal.spectrogram(eeg, fs=fs_eeg, nperseg=nperseg_val, noverlap=noverlap_val)
-            Sxx_log = 10 * np.log10(Sxx_spec + 1e-10) 
-            im = ax3.pcolormesh(t_spec, f_spec, Sxx_log, shading='gouraud', cmap='turbo')
-            ax3.set_ylim(0, 100)
-            ax3.set_title("Espectrograma Fluido (Calor Tempo-Frequência)")
-            ax3.set_xlabel("Tempo (s)")
-            ax3.set_ylabel("Frequência (Hz)")
-            fig.colorbar(im, ax=ax3, label="Intensidade (dB)")
-            
-            plt.tight_layout()
-            st.pyplot(fig)
+        fig = plt.figure(figsize=(12, 10))
+        gs = fig.add_gridspec(2, 1, height_ratios=[1, 1.5])
+        
+        ax_micro = fig.add_subplot(gs[0])
+        ax_micro.plot(t_sim, n_aferente + 100, 'g', label='Neurônio Aferente (Realidade)')
+        ax_micro.plot(t_sim, n_inibitorio, 'b', label='Interneurônio Inibitório (Predição)')
+        ax_micro.plot(t_sim, n_cortical - 100, 'purple', label='Cortical Excitatório (Erro de Predição)')
+        for st_time in stim_times: ax_micro.axvline(st_time, color='r', ls='--', alpha=0.5)
+        ax_micro.set_title("Micro-escala: Rede Neural de Codificação Preditiva")
+        ax_micro.set_yticks([]); ax_micro.legend(loc='upper right')
+        
+        ax_macro = fig.add_subplot(gs[1])
+        ax_macro.plot(t_eeg, eeg_final, color='black', lw=1.2)
+        ax_macro.set_title("Macro-escala: Eletroencefalograma (Habituação do ERP)")
+        ax_macro.set_xlabel("Tempo (s)"); ax_macro.set_ylabel("Amplitude (µV)")
+        for st_time in stim_times: ax_macro.axvline(st_time/1000, color='r', ls='--', alpha=0.5)
+        
+        plt.tight_layout()
+        st.pyplot(fig)
 
     elif modo == "Eletromiograma (EMG / CMAP)":
         st.markdown("**Potencial de Ação Muscular Composto (CMAP)**")
@@ -445,304 +496,343 @@ with tabs[2]:
 
         cmap_signal += np.random.normal(0, 0.1, len(t_cmap))
 
-        fig_cmap, ax_cmap = plt.subplots(figsize=(10, 5))
-        ax_cmap.plot(t_cmap, cmap_signal, color='darkgreen', lw=2)
-        ax_cmap.set_title(f"Eletromiograma: CMAP (Recrutamento: {recrutamento*100:.0f}%)")
-        ax_cmap.set_xlabel("Tempo (ms)"); ax_cmap.set_ylabel("Amplitude (mV)")
-        ax_cmap.grid(True, alpha=0.3)
-        st.pyplot(fig_cmap)
+        fig, ax = plt.subplots(figsize=(10, 5))
+        ax.plot(t_cmap, cmap_signal, color='darkgreen', lw=2)
+        ax.set_title(f"Eletromiograma: CMAP (Recrutamento: {recrutamento*100:.0f}%)")
+        ax.set_xlabel("Tempo (ms)"); ax.set_ylabel("Amplitude (mV)")
+        ax.grid(True, alpha=0.3)
+        st.pyplot(fig)
 
 # ==========================================================
-# ABA 4: BIOFÍSICA DA VISÃO
+# ABA 5: VISÃO
 # ==========================================================
-with tabs[3]:
-    st.subheader("👁️ Óptica Fisiológica e Fotorrecepção")
-    st.markdown("A captação luminosa ocorre na retina, onde os fótons ativam proteínas (opsinas), desencadeando a hiperpolarização da membrana celular através da cascata do GMPc.")
+with tabs[4]:
+    st.header("👁️ Óptica Fisiológica e Fototransdução")
+    
+    st.markdown("""
+    A retina humana possui dois tipos principais de fotorreceptores: os **bastonetes** (altamente sensíveis, visão noturna/escotópica, sem cores) 
+    e os **cones** (menor sensibilidade, visão diurna/fotópica, responsáveis pela percepção de cores).
+    """)
     
     col_vis1, col_vis2 = st.columns([1, 2])
     with col_vis1:
-        st.markdown("### Fotorreceptores da Retina")
-        st.write("**Bastonetes:** Altamente sensíveis à luz (visão escotópica). Não diferenciam cores. Abundantes na periferia da retina.")
-        st.write("**Cones:** Menor sensibilidade à luz, requerem ambientes iluminados (visão fotópica). Responsáveis pela acuidade visual e visão de cores. Concentrados na fóvea.")
+        especie = st.selectbox("Evolução do Espectro Visual:", [
+            "Humano (Tricromata)", 
+            "Cão/Gato (Dicromata)", 
+            "Abelha (Tricromata + UV)", 
+            "Águia (Tetracromata)", 
+            "Lagarto Diurno (Tetracromata Filtrado)"
+        ])
         
+        wl_user = st.slider("Dispare um Fóton (Comprimento de Onda em nm):", 300, 750, 500)
+        st.markdown(f"**Cor Estimada da Luz:**")
+        st.markdown(f"<div style='width: 100%; height: 50px; background-color: {length_to_rgb(wl_user)}; border-radius: 5px; border: 1px solid #ccc;'></div>", unsafe_allow_html=True)
+    
     with col_vis2:
-        st.markdown("### Espectro de Absorção e Visão Comparada")
-        especie_visao = st.radio("Selecione o Sistema Visual:", 
-                                 ["Humanos (Tricromata)", "Abelhas (UV-Tricromata)", "Águias (Tetracromata)", "Lagartos (Tetracromata + Gotículas)"],
-                                 horizontal=True)
+        wl = np.linspace(300, 750, 500)
+        curvas = {}
         
-        def opsina(x, pico, largura):
-            return np.exp(-((x - pico)**2) / (2 * largura**2))
-        
-        ondas = np.linspace(300, 750, 500)
-        fig_vis, ax_vis = plt.subplots(figsize=(10, 4))
-        
-        for wl_bg in range(400, 701, 5):
-            cor_bg = plt.cm.turbo((wl_bg - 400) / 300.0) 
-            ax_vis.axvspan(wl_bg, wl_bg+5, color=cor_bg, alpha=0.15)
-            
-        if especie_visao == "Humanos (Tricromata)":
-            ax_vis.plot(ondas, opsina(ondas, 420, 20), color='blue', label='Cone S (Azul)', lw=2)
-            ax_vis.plot(ondas, opsina(ondas, 534, 25), color='green', label='Cone M (Verde)', lw=2)
-            ax_vis.plot(ondas, opsina(ondas, 564, 25), color='red', label='Cone L (Vermelho)', lw=2)
-            ax_vis.plot(ondas, opsina(ondas, 498, 30), color='black', label='Bastonetes', ls='--', lw=1.5)
-            
-        elif especie_visao == "Abelhas (UV-Tricromata)":
-            ax_vis.axvspan(300, 400, color='purple', alpha=0.1, label='Zona UV')
-            ax_vis.plot(ondas, opsina(ondas, 344, 20), color='purple', label='Receptor UV', lw=2)
-            ax_vis.plot(ondas, opsina(ondas, 436, 25), color='blue', label='Receptor Azul', lw=2)
-            ax_vis.plot(ondas, opsina(ondas, 544, 30), color='green', label='Receptor Verde', lw=2)
-            
-        elif especie_visao == "Águias (Tetracromata)":
-            ax_vis.plot(ondas, opsina(ondas, 370, 20), color='purple', label='Cone UV/Violeta', lw=2)
-            ax_vis.plot(ondas, opsina(ondas, 430, 20), color='blue', label='Cone S', lw=2)
-            ax_vis.plot(ondas, opsina(ondas, 500, 20), color='green', label='Cone M', lw=2)
-            ax_vis.plot(ondas, opsina(ondas, 560, 20), color='red', label='Cone L', lw=2)
-            
-        elif especie_visao == "Lagartos (Tetracromata + Gotículas)":
-            ax_vis.plot(ondas, opsina(ondas, 360, 12), color='purple', label='Cone UV', lw=2)
-            ax_vis.plot(ondas, opsina(ondas, 430, 12), color='blue', label='Cone S (filtrado)', lw=2)
-            ax_vis.plot(ondas, opsina(ondas, 495, 12), color='green', label='Cone M (filtrado)', lw=2)
-            ax_vis.plot(ondas, opsina(ondas, 570, 12), color='red', label='Cone L (filtrado)', lw=2)
+        if especie == "Humano (Tricromata)":
+            curvas["Bastonete (Rodopsina)"] = (500, 40, 'gray')
+            curvas["Cone S (Azul)"] = (420, 35, 'blue')
+            curvas["Cone M (Verde)"] = (530, 45, 'green')
+            curvas["Cone L (Vermelho)"] = (560, 50, 'red')
+        elif especie == "Cão/Gato (Dicromata)":
+            curvas["Bastonete"] = (500, 40, 'gray')
+            curvas["Cone S (Azul/UV)"] = (430, 40, 'blue')
+            curvas["Cone M/L (Amarelo)"] = (555, 50, 'orange')
+        elif especie == "Abelha (Tricromata + UV)":
+            curvas["Receptor UV"] = (340, 30, 'purple')
+            curvas["Receptor Azul"] = (430, 35, 'blue')
+            curvas["Receptor Verde"] = (540, 40, 'green')
+        elif especie == "Águia (Tetracromata)":
+            curvas["Cone UV/Violeta"] = (400, 30, 'purple')
+            curvas["Cone S (Azul)"] = (450, 30, 'blue')
+            curvas["Cone M (Verde)"] = (530, 35, 'green')
+            curvas["Cone L (Vermelho)"] = (570, 35, 'red')
+        elif especie == "Lagarto Diurno (Tetracromata Filtrado)":
+            curvas["Cone UV"] = (360, 12, 'purple')
+            curvas["Cone S"] = (460, 12, 'blue')
+            curvas["Cone M"] = (540, 12, 'green')
+            curvas["Cone L"] = (610, 12, 'red')
 
-        ax_vis.set_xlim(300, 750)
-        ax_vis.set_title("Espectro de Absorção Fotopigmentada")
+        fig_vis, ax_vis = plt.subplots(figsize=(10, 5))
+        ativacoes = {}
+        
+        for nome, (pico, largura, cor) in curvas.items():
+            absorcao = np.exp(-((wl - pico)**2) / (2 * largura**2))
+            ax_vis.plot(wl, absorcao, color=cor, label=nome, lw=2)
+            ax_vis.fill_between(wl, absorcao, color=cor, alpha=0.1)
+            ativacoes[nome] = np.exp(-((wl_user - pico)**2) / (2 * largura**2))
+            
+        ax_vis.axvline(wl_user, color='black', linestyle='--', label=f'Fóton ({wl_user} nm)')
+        ax_vis.set_title(f"Espectro de Absorção das Opsinas: {especie}")
         ax_vis.set_xlabel("Comprimento de Onda (nm)")
-        ax_vis.set_ylabel("Absorção Relativa")
-        ax_vis.legend(loc='upper right')
+        ax_vis.set_ylabel("Absorção Relativa (%)")
+        ax_vis.legend(loc='upper right', fontsize='small')
+        ax_vis.grid(True, alpha=0.3)
         st.pyplot(fig_vis)
 
     st.markdown("---")
-    st.markdown("### 🎨 Simulador de Ativação de Cones")
-    st.write("Deslize para alterar a cor da luz (comprimento de onda) e observe como a retina codifica essa informação.")
+    st.subheader("Cascata de Fototransdução Neural")
     
-    wl = st.slider("Comprimento de Onda da Luz (nm)", 380, 750, 500)
-    
-    def wl_to_rgb(wl_val):
-        if 380 <= wl_val <= 440: r, g, b = -(wl_val - 440) / (440 - 380), 0.0, 1.0
-        elif 440 <= wl_val <= 490: r, g, b = 0.0, (wl_val - 440) / (490 - 440), 1.0
-        elif 490 <= wl_val <= 510: r, g, b = 0.0, 1.0, -(wl_val - 510) / (510 - 490)
-        elif 510 <= wl_val <= 580: r, g, b = (wl_val - 510) / (580 - 510), 1.0, 0.0
-        elif 580 <= wl_val <= 645: r, g, b = 1.0, -(wl_val - 645) / (645 - 580), 0.0
-        elif 645 <= wl_val <= 750: r, g, b = 1.0, 0.0, 0.0
-        else: r, g, b = 0.0, 0.0, 0.0
+    c_foto1, c_foto2 = st.columns([1, 2])
+    with c_foto1:
+        st.write("**Nível de Ativação do Receptor:**")
+        for nome, val in ativacoes.items():
+            st.progress(float(val), text=f"{nome}: {val*100:.1f}%")
+            
+    with c_foto2:
+        t_foto = np.linspace(0, 100, 500)
+        fig_vm, ax_vm = plt.subplots(figsize=(10, 4))
         
-        fator = 0.3 + 0.7*(wl_val - 380)/(420 - 380) if wl_val < 420 else (0.3 + 0.7*(750 - wl_val)/(750 - 700) if wl_val > 700 else 1.0)
-        return int((r*fator)**0.8 * 255), int((g*fator)**0.8 * 255), int((b*fator)**0.8 * 255)
-
-    r_cor, g_cor, b_cor = wl_to_rgb(wl)
-    
-    ativ_s = opsina(wl, 420, 20)
-    ativ_m = opsina(wl, 534, 25)
-    ativ_l = opsina(wl, 564, 25)
-
-    col_cor1, col_cor2 = st.columns([1, 2])
-    with col_cor1:
-        html_color = f"""
-        <div style="background-color: rgb({r_cor}, {g_cor}, {b_cor});
-                    width: 100%; height: 120px; border-radius: 10px; 
-                    border: 2px solid #555; box-shadow: 2px 2px 5px rgba(0,0,0,0.3);">
-        </div>
-        <p style="text-align:center; font-weight:bold; margin-top:5px;">Luz Incidente: {wl} nm</p>
-        """
-        st.markdown(html_color, unsafe_allow_html=True)
-        
-    with col_cor2:
-        fig_ativ, ax_ativ = plt.subplots(figsize=(6, 2.5))
-        ax_ativ.barh(['Cone L (Vermelho)', 'Cone M (Verde)', 'Cone S (Azul)'], 
-                     [ativ_l, ativ_m, ativ_s], 
-                     color=['red', 'green', 'blue'])
-        ax_ativ.set_xlim(0, 1.1)
-        ax_ativ.set_xlabel("Nível de Disparo do Fotorreceptor")
-        ax_ativ.set_title("Resposta Neural da Retina Humana")
-        ax_ativ.spines['top'].set_visible(False)
-        ax_ativ.spines['right'].set_visible(False)
-        st.pyplot(fig_ativ)
-
-    st.markdown("---")
-    st.markdown("### ⚡ Eletrofisiologia da Visão: A Cascata no Escuro vs Luz")
-    
-    if st.button("🔦 Simular Incidência de Luz na Retina"):
-        t_vis = np.linspace(0, 500, 1000) 
-        pulso_luz = np.where((t_vis > 100) & (t_vis < 300), 1.0, 0.0) 
-        
-        vm_l = -40.0 - (25.0 * ativ_l * pulso_luz)
-        vm_m = -40.0 - (25.0 * ativ_m * pulso_luz)
-        vm_s = -40.0 - (25.0 * ativ_s * pulso_luz)
-        
-        ativacao_maxima = max(ativ_l, ativ_m, ativ_s)
-        taxa_disparo = 10 + (90 * ativacao_maxima * pulso_luz) 
-        
-        spikes_nervo = []
-        integral = 0
-        dt_vis = t_vis[1] - t_vis[0]
-        for idx in range(len(t_vis)):
-            integral += taxa_disparo[idx] * (dt_vis / 1000.0) 
-            if integral >= 1.0:
-                spikes_nervo.append(t_vis[idx])
-                integral = 0
+        vm_base = -40 
+        for nome, val in ativacoes.items():
+            if "Bastonete" in nome or "Cone" in nome or "Receptor" in nome:
+                drop = 25 * val 
+                vm_curve = vm_base - drop * np.exp(-((t_foto - 20)**2)/200) * (t_foto > 10)
+                cor_plot = 'gray' if 'Bastonete' in nome else ('blue' if 'S' in nome or 'Azul' in nome else ('green' if 'M' in nome or 'Verde' in nome else ('red' if 'L' in nome or 'Vermelho' in nome else 'purple')))
+                ax_vm.plot(t_foto, vm_curve, color=cor_plot, lw=2, label=nome)
                 
-        fig_foto, (ax_luz, ax_vm, ax_nervo) = plt.subplots(3, 1, figsize=(10, 8), sharex=True, gridspec_kw={'height_ratios': [1, 2, 1]})
-        
-        hex_color = f'#{r_cor:02x}{g_cor:02x}{b_cor:02x}'
-        ax_luz.plot(t_vis, pulso_luz, color=hex_color, lw=3)
-        ax_luz.fill_between(t_vis, pulso_luz, color=hex_color, alpha=0.3)
-        ax_luz.set_ylabel("Fótons")
-        ax_luz.set_title(f"Estímulo Luminoso (λ = {wl} nm)")
-        ax_luz.set_yticks([])
-        
-        ax_vm.plot(t_vis, vm_l, 'r', label='Cone L (Vermelho)', lw=2)
-        ax_vm.plot(t_vis, vm_m, 'g', label='Cone M (Verde)', lw=2)
-        ax_vm.plot(t_vis, vm_s, 'b', label='Cone S (Azul)', lw=2)
-        ax_vm.axhline(-40, color='gray', ls='--', label='Corrente de Escuro (-40mV)')
+        ax_vm.set_title("Potencial de Membrana Fotorreceptor (A Luz causa Hiperpolarização)")
+        ax_vm.set_xlabel("Tempo (ms)")
         ax_vm.set_ylabel("Vm (mV)")
-        ax_vm.set_title("Potencial de Membrana do Fotorreceptor (Hiperpolarização)")
-        ax_vm.legend()
-        ax_vm.grid(alpha=0.3)
-        
-        ax_nervo.vlines(spikes_nervo, ymin=0, ymax=1, color='purple')
-        ax_nervo.set_ylabel("Spikes")
-        ax_nervo.set_xlabel("Tempo (ms)")
-        ax_nervo.set_title("Via Direta: Ativação da Célula Ganglionar ON e Nervo Óptico")
-        ax_nervo.set_yticks([])
-        
-        plt.tight_layout()
-        st.pyplot(fig_foto)
+        ax_vm.axvspan(10, 30, color='yellow', alpha=0.2, label='Flash de Luz')
+        ax_vm.grid(alpha=0.3); ax_vm.legend()
+        st.pyplot(fig_vm)
 
 # ==========================================================
-# ABA 5: BIOFÍSICA DA AUDIÇÃO
+# ABA 6: AUDIÇÃO
 # ==========================================================
-with tabs[4]:
-    st.subheader("👂 Acústica Fisiológica e Mecanotransdução")
-    st.markdown("O som é uma onda mecânica convertida em sinal elétrico na cóclea pelo movimento dos estereocílios das células ciliadas.")
+with tabs[5]:
+    st.header("👂 Acústica Fisiológica e Mecanotransdução")
+    
+    st.markdown("""
+    A cóclea é organizada de forma **tonotópica**: a base é rígida e responde a altas frequências (sons agudos), 
+    enquanto o ápice é flexível e responde a baixas frequências (sons graves).
+    """)
     
     col_aud1, col_aud2 = st.columns([1, 2])
     with col_aud1:
-        st.markdown("### As Células Ciliadas")
-        st.write("**Internas (CCI):** Verdadeiros receptores sensoriais (transdutores). O movimento mecânico abre canais de K+ dependentes de estiramento.")
-        st.write("**Externas (CCE):** Atuam como amplificadores cocleares. Apresentam *eletromotilidade* (encolhem e esticam via proteína prestina) para amplificar sons fracos.")
+        st.subheader("Audiograma Clínico")
+        perfil_aud = st.radio("Perfil do Paciente:", ["Jovem Saudável", "Idoso (Presbiacusia)", "Cão", "Morcego (Ultrassom)"])
+        freq_user = st.slider("Frequência da Onda Sonora (Hz):", 20, 20000, 2000)
+        amp_user = st.slider("Volume do Som (Amplitude dB):", 0, 120, 60)
         
-        st.markdown("---")
-        st.markdown("### Espectro Sonoro Animal")
-        animais = ['Humano', 'Cão', 'Ave', 'Morcego']
-        min_hz = [20, 67, 100, 10000]
-        max_hz = [20000, 45000, 8000, 200000]
-        
-        fig_bar, ax_bar = plt.subplots(figsize=(5, 3))
-        for idx_anim in range(len(animais)):
-            ax_bar.barh(animais[idx_anim], max_hz[idx_anim] - min_hz[idx_anim], left=min_hz[idx_anim], color='teal', alpha=0.7)
-        ax_bar.set_xscale('log')
-        ax_bar.set_xlabel("Frequência (Hz) - Escala Log")
-        ax_bar.set_title("Capacidade Auditiva")
-        st.pyplot(fig_bar)
-
     with col_aud2:
-        st.markdown("### Tonotopia e Presbiacusia (Envelhecimento)")
         freqs_audiograma = [125, 250, 500, 1000, 2000, 4000, 8000, 16000]
+        perdas = {"Jovem Saudável": [0, 0, 5, 0, 5, 5, 10, 15],
+                  "Idoso (Presbiacusia)": [10, 15, 20, 25, 40, 60, 80, 95],
+                  "Cão": [-10, -5, 0, 0, -10, -15, -20, -10],
+                  "Morcego (Ultrassom)": [80, 70, 50, 30, 10, 0, -10, -20]}
         
-        idade_bebe = [0, -2, 0, 0, 0, 0, 5, 5]
-        idade_jovem = [5, 5, 5, 5, 5, 10, 15, 25]
-        idade_idoso = [15, 15, 20, 25, 40, 60, 80, 110]
-        
-        fig_aud, ax_aud = plt.subplots(figsize=(10, 5))
-        ax_aud.plot(freqs_audiograma, idade_bebe, 'o-', color='blue', label='Bebê', lw=2)
-        ax_aud.plot(freqs_audiograma, idade_jovem, 's-', color='green', label='Jovem Adulto', lw=2)
-        ax_aud.plot(freqs_audiograma, idade_idoso, '^-', color='red', label='Idoso (Presbiacusia)', lw=2)
-        
+        fig_aud, ax_aud = plt.subplots(figsize=(8, 4))
+        ax_aud.plot(freqs_audiograma, perdas[perfil_aud], 'o-', color='red' if 'Idoso' in perfil_aud else 'blue', lw=2)
         ax_aud.set_xscale('log')
         ax_aud.set_xticks(freqs_audiograma)
-        ax_aud.set_xticklabels(['125', '250', '500', '1k', '2k', '4k', '8k', '16k'])
-        ax_aud.set_ylim(-10, 120)
+        ax_aud.set_xticklabels(freqs_audiograma)
         ax_aud.invert_yaxis()
-        
-        ax_aud.axhspan(-10, 20, color='gray', alpha=0.1, label='Audição Normal')
-        ax_aud.set_title("Audiograma Clínico Simulado")
-        ax_aud.set_xlabel("Frequência do Som (Hz)")
-        ax_aud.set_ylabel("Limiar Auditivo (dB HL) - Invertido")
-        ax_aud.legend(loc='lower left')
-        ax_aud.grid(True, which='both', ls='--', alpha=0.5)
+        ax_aud.set_title("Audiograma Clínico Tonal")
+        ax_aud.set_xlabel("Frequência (Hz)")
+        ax_aud.set_ylabel("Limiar Auditivo (dB HL)")
+        ax_aud.grid(True, which="both", ls="-", alpha=0.3)
         st.pyplot(fig_aud)
 
     st.markdown("---")
-    st.markdown("### 🎹 Simulador de Tonotopia Coclear e Ativação Ciliada")
     
-    col_som1, col_som2 = st.columns(2)
-    with col_som1:
-        freq_som = st.slider("Frequência da Onda Sonora (Hz)", 20, 20000, 1000, step=10, format="%d Hz")
-    with col_som2:
-        amp_som = st.slider("Amplitude Sonora (Volume em dB)", 0, 120, 60)
-        amp_linear = amp_som / 120.0 
+    st.subheader("Potenciais Microfônicos (Experimento de Tasaki, 1954)")
+    f_micro = st.radio("Selecione a frequência do som (kHz):", [0.5, 1.0, 2.0, 4.0], horizontal=True)
+    t_mic = np.linspace(0, 4, 400) 
     
-    posicao_ativada = 35 * (1 - np.log10(freq_som / 20) / np.log10(20000 / 20))
-    pos = np.linspace(0, 35, 500)
-    envelope = amp_linear * np.exp(-((pos - posicao_ativada)**2) / (2 * 1.5**2))
-    
-    fig_tono, ax_tono = plt.subplots(figsize=(10, 3))
-    ax_tono.fill_between(pos, envelope, color='dodgerblue', alpha=0.4)
-    ax_tono.plot(pos, envelope, color='navy', lw=2)
-    ax_tono.axvline(posicao_ativada, color='red', ls='--', lw=2, label=f'Pico ({posicao_ativada:.1f} mm)')
-    
-    ax_tono.axvline(0, color='black', lw=1)
-    ax_tono.text(0.5, 1.1 * max(1, amp_linear), "BASE\nSons Agudos", ha='left', fontsize=10, fontweight='bold')
-    ax_tono.axvline(35, color='black', lw=1)
-    ax_tono.text(34.5, 1.1 * max(1, amp_linear), "ÁPICE\nSons Graves", ha='right', fontsize=10, fontweight='bold')
+    base_amp = 1.0
+    if f_micro == 0.5: apex_amp = 1.0
+    elif f_micro == 1.0: apex_amp = 0.6
+    elif f_micro == 2.0: apex_amp = 0.15
+    elif f_micro == 4.0: apex_amp = 0.0
 
-    ax_tono.set_xlim(-2, 37)
-    ax_tono.set_ylim(0, 1.4)
-    ax_tono.set_xlabel("Distância na Membrana Basilar da Cóclea (mm)")
-    ax_tono.set_yticks([]) 
-    ax_tono.legend(loc='upper right')
-    
-    ax_tono.spines['top'].set_visible(False)
-    ax_tono.spines['right'].set_visible(False)
-    ax_tono.spines['left'].set_visible(False)
-    st.pyplot(fig_tono)
+    onda_base = base_amp * np.sin(2 * np.pi * f_micro * t_mic)
+    onda_apex = apex_amp * np.sin(2 * np.pi * f_micro * t_mic)
+    onda_som = 1.0 * np.sin(2 * np.pi * f_micro * t_mic)
 
-    if st.button("🔊 Simular Resposta da Célula Ciliada"):
-        t_aud = np.linspace(0, 100, 1000) 
-        som = np.where((t_aud > 20) & (t_aud < 80), amp_linear, 0.0) 
+    fig_mic, axes_mic = plt.subplots(1, 3, figsize=(12, 3), sharey=True)
+    
+    axes_mic[0].plot(t_mic, onda_som, color='black', lw=1.5)
+    axes_mic[0].set_title(f"Som ({f_micro} kHz)")
+    axes_mic[0].axis('off')
+    
+    axes_mic[1].plot(t_mic, onda_base, color='blue', lw=1.5)
+    axes_mic[1].set_title("Microfônicos (Giro Basal)")
+    axes_mic[1].axhline(0, color='black', lw=0.5, ls='--')
+    axes_mic[1].axis('off')
+    
+    if apex_amp > 0: axes_mic[2].plot(t_mic, onda_apex, color='red', lw=1.5)
+    else: axes_mic[2].axhline(0, color='red', lw=1.5) 
+    axes_mic[2].set_title("Microfônicos (3º Giro - Ápice)")
+    axes_mic[2].axhline(0, color='black', lw=0.5, ls='--')
+    axes_mic[2].axis('off')
+    st.pyplot(fig_mic)
+    
+    st.markdown("---")
+
+    c_aud1, c_aud2 = st.columns([1, 2])
+    with c_aud1:
+        st.write("Eletromotilidade da CCE")
+        contração = (amp_user / 120.0) * 20 
+        fig_cel, ax_cel = plt.subplots(figsize=(4, 6))
+        ax_cel.add_patch(patches.Rectangle((0.2, 0), 0.2, 1.0, facecolor='lightblue', edgecolor='black'))
+        ax_cel.add_patch(patches.Rectangle((0.6, 0), 0.2, 1.0 - (contração/100), facecolor='magenta', edgecolor='black'))
+        ax_cel.text(0.3, 0.5, 'CCI', ha='center', va='center')
+        ax_cel.text(0.7, 0.5, 'CCE', ha='center', va='center')
+        ax_cel.set_ylim(0, 1.2)
+        ax_cel.axis('off')
+        st.pyplot(fig_cel)
         
-        vm_ciliada = -70.0 + (30.0 * som)
-        contracao_cce = 10.0 * som 
+    with c_aud2:
+        t_ton = np.linspace(0, 35, 500)
+        local_pico = 35 * (1 - np.log10(freq_user/20) / np.log10(20000/20))
+        envelope = (amp_user/120.0) * np.exp(-((t_ton - local_pico)**2)/10)
         
-        taxa_disparo_aud = 5 + (150 * som) 
-        spikes_aud = []
-        integral_aud = 0
-        dt_aud = t_aud[1] - t_aud[0]
+        fig_ton, ax_ton = plt.subplots(figsize=(10, 4))
+        ax_ton.plot(t_ton, envelope, color='green', lw=2)
+        ax_ton.fill_between(t_ton, envelope, color='green', alpha=0.3)
+        ax_ton.set_title("Mecânica da Membrana Basilar (Onda Viajante)")
+        ax_ton.set_xlabel("Distância do Estribo (mm) -> Direção ao Ápice")
+        ax_ton.set_ylabel("Deslocamento")
+        ax_ton.axvline(local_pico, color='black', linestyle='--', label=f'Pico em {local_pico:.1f} mm')
+        ax_ton.legend()
+        ax_ton.grid(alpha=0.3)
+        st.pyplot(fig_ton)
+
+# ==========================================================
+# ABA 7: EPILEPSIA (MICRO E MACRO)
+# ==========================================================
+with tabs[6]:
+    st.header("🧠 Fisiopatologia: Epilepsia e Farmacologia")
+    st.markdown("Estudo computacional dos padrões de disparo neuronal (Micro-sinal) e sua manifestação no Eletroencefalograma (Macro-sinal).")
+    
+    c_epi1, c_epi2 = st.columns(2)
+    with c_epi1:
+        tipo_crise = st.selectbox("Tipo de Atividade / Crise:", [
+            "Cérebro Saudável (Controle)",
+            "Epilepsia Crônica (Crise Focal)",
+            "Status Epilepticus (Refratária)",
+            "Crise de Ausência (Petit Mal)"
+        ])
+    with c_epi2:
+        farmaco = st.selectbox("Intervenção Farmacológica:", [
+            "Nenhum (Sem Medicação)",
+            "Fenitoína (Bloqueador de Na+)",
+            "Etossuximida (Bloqueador de Ca2+ Tipo-T)",
+            "Diazepam (Agonista GABAérgico)"
+        ])
         
-        for idx in range(len(t_aud)):
-            integral_aud += taxa_disparo_aud[idx] * (dt_aud / 1000.0)
-            if integral_aud >= 1.0:
-                spikes_aud.append(t_aud[idx])
-                integral_aud = 0
-                
-        fig_mec, (ax_som, ax_vm_aud, ax_nervo_aud) = plt.subplots(3, 1, figsize=(10, 8), sharex=True, gridspec_kw={'height_ratios': [1, 2, 1]})
+    st.markdown("---")
+    
+    # Parâmetros base de Izhikevich
+    a, b, c_param, d = 0.02, 0.2, -65, 8
+    I_base = 10
+    
+    # Ajustes da Patologia (Dinâmica Matemática)
+    if "Crônica" in tipo_crise:
+        c_param, d = -50, 2  # Chattering / Bursting forte
+        I_base = 15
+    elif "Refratária" in tipo_crise:
+        a, b, c_param, d = 0.1, 0.2, -65, 2 # Fast Spiking hiperativo
+        I_base = 20
+    elif "Ausência" in tipo_crise:
+        a, b, c_param, d = 0.02, 0.25, -65, 0.05 # Resonador Talâmico
+        I_base = 5 
         
-        ax_som.plot(t_aud, som, color='gray', lw=2)
-        ax_som.fill_between(t_aud, som, color='gray', alpha=0.3)
-        ax_som.set_ylabel("Pressão (Pa)")
-        ax_som.set_title(f"Estímulo Acústico Recebido ({freq_som} Hz | {amp_som} dB)")
-        ax_som.set_ylim(0, 1.1)
+    # Lógica de Intervenção Farmacológica (Erro Médico Simulado)
+    alerta_erro = False
+    if farmaco == "Fenitoína (Bloqueador de Na+)":
+        if "Ausência" in tipo_crise:
+            alerta_erro = True # Ausência não responde a Fenitoína!
+        elif "Crônica" in tipo_crise or "Refratária" in tipo_crise:
+            I_base = 2 # Diminui drasticamente a corrente, suprimindo o Na+
+    elif farmaco == "Etossuximida (Bloqueador de Ca2+ Tipo-T)":
+        if "Ausência" in tipo_crise:
+            I_base = 2 # Sucesso! Bloqueia o circuito talamocortical
+        elif "Crônica" in tipo_crise or "Refratária" in tipo_crise:
+            alerta_erro = True # Fármaco ineficaz em crises não-ausência
+    elif farmaco == "Diazepam (Agonista GABAérgico)":
+        I_base -= 12 # Potencializa inibição globalmente
+        if I_base < 0: I_base = 0
         
-        ax_vm_aud.plot(t_aud, vm_ciliada, 'teal', lw=2, label='Cél. Ciliada Interna (Vm)')
+    if alerta_erro:
+        st.error("⚠️ **ERRO CLÍNICO:** Este fármaco não é o indicado para esta crise! O mecanismo de ação não atinge o canal correto da fisiopatologia.")
+    elif farmaco != "Nenhum (Sem Medicação)":
+        st.success("✅ **FÁRMACO ATIVO:** Observe a supressão da crise no traçado eletrofisiológico e o restabelecimento do ritmo base.")
         
-        ax_mec2 = ax_vm_aud.twinx()
-        ax_mec2.plot(t_aud, contracao_cce, 'magenta', lw=2, ls='--', label='Contração CCE (%)')
+    # --- SIMULAÇÃO DE MICRO-ESCALA (Modelo de Izhikevich) ---
+    T_sim = 1000 # 1 segundo (1000 ms)
+    dt = 0.5
+    t_steps = int(T_sim / dt)
+    v = np.zeros(t_steps)
+    u = np.zeros(t_steps)
+    v[0] = -65
+    u[0] = b * v[0]
+    
+    for i in range(1, t_steps):
+        I_in = I_base
+        # Se for ausência, o tálamo impulsiona uma onda senoidal lenta (~3 Hz) que ativa os canais T
+        if "Ausência" in tipo_crise and I_base > 2:
+            I_in = I_base + 8 * np.sin(2 * np.pi * 3 * (i * dt) / 1000)
+            
+        # Método de Euler para integração
+        v_next = v[i-1] + dt * (0.04 * v[i-1]**2 + 5 * v[i-1] + 140 - u[i-1] + I_in)
+        u_next = u[i-1] + dt * a * (b * v[i-1] - u[i-1])
         
-        ax_vm_aud.axhline(-70, color='gray', ls=':', label='Repouso (-70mV)')
-        ax_vm_aud.set_ylabel("Vm (mV)", color='teal')
-        ax_mec2.set_ylabel("Encurtamento Muscular (%)", color='magenta')
-        ax_vm_aud.set_title("Despolarização e Eletromotilidade (Na Posição de Pico)")
-        
-        lines_1, labels_1 = ax_vm_aud.get_legend_handles_labels()
-        lines_2, labels_2 = ax_mec2.get_legend_handles_labels()
-        ax_vm_aud.legend(lines_1 + lines_2, labels_1 + labels_2, loc='upper left')
-        
-        ax_nervo_aud.vlines(spikes_aud, ymin=0, ymax=1, color='navy')
-        ax_nervo_aud.set_ylabel("Spikes")
-        ax_nervo_aud.set_xlabel("Tempo (ms)")
-        ax_nervo_aud.set_title("Fibras do Nervo Coclear")
-        ax_nervo_aud.set_yticks([])
-        
-        plt.tight_layout()
-        st.pyplot(fig_mec)
+        # Reset de disparo
+        if v_next >= 30:
+            v[i-1] = 30 # Força o pico visual
+            v[i] = c_param
+            u[i] = u_next + d
+        else:
+            v[i] = v_next
+            u[i] = u_next
+
+    # --- SIMULAÇÃO DE MACRO-ESCALA (Sintetizador EEG) ---
+    t_eeg = np.linspace(0, 3, 3000) 
+    eeg = np.zeros_like(t_eeg)
+    
+    if "Saudável" in tipo_crise:
+        eeg = 2 * np.sin(2*np.pi*10*t_eeg) + np.random.normal(0, 0.5, len(t_eeg))
+    elif "Crônica" in tipo_crise:
+        if I_base > 5:
+            # Mistura de ritmo basal com espículas focais intermitentes
+            eeg = 15 * np.exp(-((t_eeg % 0.2 - 0.1)**2)/(2*0.01**2)) + 5 * np.sin(2*np.pi*5*t_eeg) + np.random.normal(0, 1, len(t_eeg))
+        else: # Tratado
+            eeg = 2 * np.sin(2*np.pi*10*t_eeg) + np.random.normal(0, 0.5, len(t_eeg))
+    elif "Refratária" in tipo_crise:
+        if I_base > 5:
+            # Descargas elétricas de alta amplitude e frequência contínuas
+            eeg = 20 * np.sin(2*np.pi*15*t_eeg) + 15 * np.sin(2*np.pi*25*t_eeg) + np.random.normal(0, 2, len(t_eeg))
+        else: # Tratado (Diazepam reduz bastante a freq)
+            eeg = 1 * np.sin(2*np.pi*4*t_eeg) + np.random.normal(0, 0.5, len(t_eeg)) 
+    elif "Ausência" in tipo_crise:
+        if I_base > 2:
+            # Típico complexo Espícula-Onda (Spike and Wave) a 3 Hz
+            onda = 15 * np.sin(2*np.pi*3*t_eeg)
+            espícula = -25 * np.exp(-((t_eeg % (1/3) - 0.1)**2)/(2*0.005**2))
+            eeg = onda + espícula + np.random.normal(0, 0.5, len(t_eeg))
+        else: # Tratado (Etossuximida)
+            eeg = 2 * np.sin(2*np.pi*10*t_eeg) + np.random.normal(0, 0.5, len(t_eeg))
+
+    fig_epi, ax_epi = plt.subplots(2, 1, figsize=(12, 8))
+    
+    ax_epi[0].plot(np.arange(t_steps)*dt, v, color='purple', lw=1.5)
+    ax_epi[0].set_title(f"Micro-sinal: Neurônio Isolado (Modelo de Izhikevich)")
+    ax_epi[0].set_ylabel("Vm (mV)")
+    ax_epi[0].set_xlim(0, 1000)
+    ax_epi[0].grid(alpha=0.3)
+    
+    ax_epi[1].plot(t_eeg, eeg, color='black', lw=1.2)
+    ax_epi[1].set_title(f"Macro-sinal: Registro de Campo Eletroencefalográfico (LFP)")
+    ax_epi[1].set_xlabel("Tempo (s)")
+    ax_epi[1].set_ylabel("Amplitude (µV)")
+    ax_epi[1].set_xlim(0, 3)
+    ax_epi[1].grid(alpha=0.3)
+    
+    plt.tight_layout()
+    st.pyplot(fig_epi)
