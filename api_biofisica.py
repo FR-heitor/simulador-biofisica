@@ -436,16 +436,26 @@ with tabs[3]:
         
         for idx, s_time in enumerate(stim_times):
             pico = int(s_time / (4000 / len(t_sim)))
-            if pico < len(n_aferente): n_aferente[pico:pico+10] = 30 * int_norm
             
-            ante_pico = pico - int(50 * aprendizado[idx]) 
+            # Aleatorização do estímulo (variação natural de intensidade/ruído da via aferente)
+            fator_ruido = np.random.uniform(0.85, 1.15)
+            estimulo_real = int_norm * fator_ruido
+            
+            if pico < len(n_aferente): 
+                n_aferente[pico:pico+10] = 30 * estimulo_real
+            
+            # Antecipação temporal: o interneurônio dispara ms ANTES do pico após aprender o ritmo
+            forca_inibitoria = int_norm * aprendizado[idx]
+            ante_pico = pico - int(60 * aprendizado[idx]) 
             if ante_pico > 0 and ante_pico < len(n_inibitorio):
-                n_inibitorio[ante_pico:ante_pico+10] = 30 * aprendizado[idx]
+                n_inibitorio[ante_pico:ante_pico+15] = 30 * forca_inibitoria
             
-            forga_cortical = max(0, int_norm - aprendizado[idx])
+            # Erro de Predição (Sinal Cortical) = Realidade - Inibição (Predição)
+            forga_cortical = max(0.0, estimulo_real - forca_inibitoria)
             if pico < len(n_cortical):
                 n_cortical[pico:pico+15] = 30 * forga_cortical
                 
+            # O ERP no EEG macroscópico reflete diretamente este erro de predição cortical
             erp_shape = 5.0 * forga_cortical * np.exp(-((t_eeg - (s_time/1000))**2)/(2*0.05**2))
             erp_sinal += erp_shape
             
@@ -702,6 +712,43 @@ with tabs[5]:
         ax_ton.legend()
         ax_ton.grid(alpha=0.3)
         st.pyplot(fig_ton)
+
+    st.markdown("---")
+    st.subheader("Microfisiologia: Transdução Mecanoelétrica (Célula Ciliada Interna)")
+    st.markdown("""
+    A variação mecânica da onda sonora gera movimentos oscilatórios contínuos nos estereocílios. 
+    Quando defletidos mecanicamente para o lado do cinocílio, os canais iônicos se abrem, permitindo um massivo **influxo de Potássio (K+)** a partir da endolinfa, o que causa **Despolarização**. 
+    O recuo da onda fecha os canais, interrompendo a corrente e gerando uma **Hiperpolarização** imediata. Note o comportamento AC (corrente alternada) do potencial de receptor.
+    """)
+    
+    # Simulação do Potencial de Membrana oscilante da célula ciliada
+    # Criamos tempo suficiente para visualizar 4 ciclos da frequência escolhida
+    ciclos = 4
+    duracao_ms = (ciclos / freq_user) * 1000 if freq_user > 0 else 10
+    t_hc = np.linspace(0, duracao_ms, 500)
+    
+    # Onda sonora normalizada no tempo ajustado
+    onda_estimulo = np.sin(2 * np.pi * (freq_user / 1000) * t_hc)
+    
+    # Vm responde de forma assimétrica (despolariza mais fortemente do que hiperpolariza)
+    # O fator de amplitude é baseado no volume (dB) ajustado pelo usuário
+    fator_amp = amp_user / 120.0
+    vm_hc = -70.0 + (35.0 * onda_estimulo * (onda_estimulo > 0) * fator_amp) + (10.0 * onda_estimulo * (onda_estimulo <= 0) * fator_amp)
+    
+    fig_hc, ax_hc = plt.subplots(figsize=(12, 4))
+    ax_hc.plot(t_hc, vm_hc, color='purple', lw=2.5)
+    ax_hc.axhline(-70, color='black', linestyle='--', alpha=0.5, label='Repouso (-70 mV)')
+    
+    # Preenchimentos visuais para destacar a função do Potássio
+    ax_hc.fill_between(t_hc, -70, vm_hc, where=(vm_hc > -70), color='red', alpha=0.3, label='Despolarização (Abertura: Influxo de K+)')
+    ax_hc.fill_between(t_hc, -70, vm_hc, where=(vm_hc < -70), color='blue', alpha=0.3, label='Hiperpolarização (Fechamento: K+ bloqueado)')
+    
+    ax_hc.set_title(f"Potencial de Membrana do Receptor ({freq_user} Hz a {amp_user} dB)")
+    ax_hc.set_xlabel("Tempo (ms)")
+    ax_hc.set_ylabel("Potencial Intracelular Vm (mV)")
+    ax_hc.grid(True, alpha=0.3)
+    ax_hc.legend(loc='upper right')
+    st.pyplot(fig_hc)
 
 # ==========================================================
 # ABA 7: EPILEPSIA (MICRO E MACRO)
