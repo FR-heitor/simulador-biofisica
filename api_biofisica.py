@@ -104,7 +104,8 @@ tabs = st.tabs([
     "🫀 Sinais Macroscópicos", 
     "👁️ Visão", 
     "👂 Audição",
-    "🧠 Epilepsia"
+    "🧠 Epilepsia",
+    "🩸 Hemodinâmica"
 ])
 
 # ==========================================================
@@ -190,12 +191,26 @@ with tabs[1]:
         st.pyplot(fig_rc)
 
 # ==========================================================
-# ABA 3: CÉLULAS EXCITÁVEIS (PA DETALHADO)
+# ABA 3: CÉLULAS EXCITÁVEIS (PA DETALHADO E SNA)
 # ==========================================================
 with tabs[2]:
     tipo_celula = st.radio("Selecione o Tecido:", ["Neurônio (Hodgkin-Huxley)", "Músculo Esquelético", "Músculo Cardíaco"], horizontal=True)
     st.info(f"O Repouso inicial é de {vm_ghk:.1f} mV. Lembre-se: O TTX inverte o estímulo causando hiperpolarização.")
-    estimulo = st.slider("Intensidade do Estímulo Elétrico", 0.0, 50.0, 20.0)
+    
+    col_exc1, col_exc2 = st.columns(2)
+    with col_exc1:
+        estimulo = st.slider("Intensidade do Estímulo Elétrico", 0.0, 50.0, 20.0)
+    with col_exc2:
+        # Modulação Autonômica Específica para o Coração
+        if tipo_celula == "Músculo Cardíaco":
+            tonus_sna = st.selectbox("Modulação do Sistema Nervoso Autônomo (SNA):", [
+                "Tônus Basal", 
+                "Ação Simpática (Noradrenalina)", 
+                "Ação Parassimpática (Acetilcolina)"
+            ])
+            st.caption("Ação em Receptores: $\\beta_1$ (Simpático) | $M_2$ (Parassimpático)")
+        else:
+            tonus_sna = "Tônus Basal"
 
     if st.button("⚡ Executar Simulação de Potencial de Ação"):
         if tipo_celula == "Neurônio (Hodgkin-Huxley)":
@@ -205,7 +220,6 @@ with tabs[2]:
                 g_k = 36.0 if not tea else 0.0
                 g_l, e_na, e_k, e_l = 0.3, 50.0, -77.0, -54.4
                 
-                # Se TTX ativo, estímulo causa hiperpolarização profunda como proteção
                 estimulo_aplicado = -estimulo if ttx else estimulo
                 i_inj = estimulo_aplicado if 5.0 <= t <= 6.0 else 0.0
                 
@@ -269,10 +283,32 @@ with tabs[2]:
             t = np.linspace(0, t_max, 1000); dt = t[1] - t[0]
             v = np.full(1000, vm_ghk)
             gna, gk, gca = np.zeros(1000), np.zeros(1000), np.zeros(1000)
+            forca_mec = np.zeros(1000) # Tensor mecânico para simular inotropismo
+            
             fase = 0; t_f = 0
             
-            # TTX inverte o estímulo (gera hiperpolarização)
             estimulo_aplicado = -estimulo if ttx else estimulo
+
+            # Lógica Autonômica: Modulação de Parâmetros
+            limiar = -40.0
+            amp_gca = 10.0
+            vm_repouso = vm_ghk
+            tempo_plato = 200
+            fator_relaxamento = 0.05
+            
+            if tipo_celula == "Músculo Cardíaco":
+                if tonus_sna == "Ação Simpática (Noradrenalina)":
+                    limiar = -45.0          # Batmotropismo positivo (mais fácil disparar)
+                    amp_gca = 25.0          # Inotropismo positivo (muito mais Cálcio)
+                    tempo_plato = 120       # Cronotropismo positivo (encurta PA para aumentar freq)
+                    fator_relaxamento = 0.12 # Lusitropismo positivo (relaxa mais rápido via SERCA)
+                elif tonus_sna == "Ação Parassimpática (Acetilcolina)":
+                    limiar = -35.0          # Batmotropismo negativo (mais difícil disparar)
+                    amp_gca = 4.0           # Inotropismo negativo (menos Cálcio)
+                    tempo_plato = 260       # Cronotropismo negativo (alonga o PA)
+                    vm_repouso = vm_ghk - 5 # Hiperpolarização por K_ACh
+                    
+            v = np.full(1000, vm_repouso)
 
             for i in range(1, 1000):
                 if 5.0 <= t[i] <= 7.0: 
@@ -289,10 +325,13 @@ with tabs[2]:
                         if not tea: gk[i] = 20; v[i] = max(v[i-1] - 500*dt, -90)
                         if v[i] <= -89: fase = 3
                     elif fase == 0: 
-                        v[i] = v[i-1] - (v[i-1] - vm_ghk) * 0.1
+                        v[i] = v[i-1] - (v[i-1] - vm_repouso) * 0.1
+                        
+                    # Simulação de força para esquelético (menor duração)
+                    forca_mec[i] = forca_mec[i-1] + (gna[i]*0.1) - (forca_mec[i-1]*0.1)
                 
-                else:
-                    if v[i] > -40 and fase == 0 and not ttx: fase = 1
+                else: # Cardíaco
+                    if v[i] > limiar and fase == 0 and not ttx: fase = 1
                     if fase == 1:
                         gna[i] = 30; v[i] = min(v[i-1] + 600*dt, 20)
                         if v[i] >= 19: fase = 4 if verapamil else 2
@@ -300,30 +339,37 @@ with tabs[2]:
                         v[i] = max(v[i-1] - 150*dt, 5); 
                         if v[i] <= 6: fase, t_f = 3, t[i]
                     elif fase == 3:
-                        gca[i] = 10; v[i] = v[i-1] - 0.05*dt
-                        if t[i] - t_f > 200: fase = 4
+                        gca[i] = amp_gca; v[i] = v[i-1] - 0.05*dt
+                        if t[i] - t_f > tempo_plato: fase = 4
                     elif fase == 4:
                         if not tea: gk[i] = 15; v[i] = max(v[i-1] - 200*dt, -90)
                     elif fase == 0: 
-                        v[i] = v[i-1] - (v[i-1] - vm_ghk) * 0.1
+                        v[i] = v[i-1] - (v[i-1] - vm_repouso) * 0.1
+                        
+                    # Simulação de Força Cardíaca (Inotropismo) Acoplada ao Cálcio
+                    # A entrada de Cálcio (gca) gera tensão que decai com o relaxamento
+                    forca_mec[i] = max(0, forca_mec[i-1] + (gca[i] * dt * 0.8) - (forca_mec[i-1] * fator_relaxamento))
 
             i_na = gna * (v - 50.0)
             i_k = gk * (v - (-90.0))
             i_ca = gca * (v - 120.0)
 
-            fig = plt.figure(figsize=(12, 12))
-            gs = fig.add_gridspec(3, 2)
+            # Para Músculos, adicionamos uma linha no GridSpec para a Tensão Mecânica
+            fig = plt.figure(figsize=(12, 15))
+            gs = fig.add_gridspec(4, 2)
             ax1 = fig.add_subplot(gs[0, :])
             ax2 = fig.add_subplot(gs[1, :])
             ax3 = fig.add_subplot(gs[2, 0])
             ax_vi = fig.add_subplot(gs[2, 1])
+            ax_forca = fig.add_subplot(gs[3, :])
 
             cor = 'red' if "Cardíaco" in tipo_celula else 'green'
             if ttx: cor = 'gray' 
             
             ax1.plot(t, v, color=cor, lw=2.5)
+            ax1.axhline(limiar, color='orange', ls=':', label=f'Limiar ({limiar}mV)')
             ax1.axvspan(5, 7, color='yellow', alpha=0.3, label='Estímulo')
-            ax1.set_ylabel("Vm (mV)"); ax1.set_title(f"Potencial de Membrana ({tipo_celula})"); ax1.grid(alpha=0.3); ax1.legend()
+            ax1.set_ylabel("Vm (mV)"); ax1.set_title(f"Potencial de Membrana ({tipo_celula}) - {tonus_sna}"); ax1.grid(alpha=0.3); ax1.legend()
             
             ax2.plot(t, i_na, 'g', label="I_Na")
             ax2.plot(t, i_k, 'orange', label="I_K")
@@ -345,6 +391,13 @@ with tabs[2]:
             ax_vi.set_xlabel("Voltagem Vm (mV)"); ax_vi.set_ylabel("Corrente")
             ax_vi.set_title("Plano de Fase: V x I")
             ax_vi.grid(alpha=0.3); ax_vi.legend(fontsize='small')
+            
+            # Gráfico de Força (Inotropismo e Lusitropismo)
+            ax_forca.plot(t, forca_mec, color='brown', lw=3, label="Tensão Ativa")
+            ax_forca.fill_between(t, forca_mec, color='brown', alpha=0.2)
+            ax_forca.set_title("Acoplamento Excitação-Contração (Inotropismo)")
+            ax_forca.set_xlabel("Tempo (ms)"); ax_forca.set_ylabel("Força Relativa")
+            ax_forca.grid(alpha=0.3); ax_forca.legend()
             
             plt.tight_layout()
             st.pyplot(fig)
@@ -436,26 +489,21 @@ with tabs[3]:
         
         for idx, s_time in enumerate(stim_times):
             pico = int(s_time / (4000 / len(t_sim)))
-            
-            # Aleatorização do estímulo (variação natural de intensidade/ruído da via aferente)
             fator_ruido = np.random.uniform(0.85, 1.15)
             estimulo_real = int_norm * fator_ruido
             
             if pico < len(n_aferente): 
                 n_aferente[pico:pico+10] = 30 * estimulo_real
             
-            # Antecipação temporal: o interneurônio dispara ms ANTES do pico após aprender o ritmo
             forca_inibitoria = int_norm * aprendizado[idx]
             ante_pico = pico - int(60 * aprendizado[idx]) 
             if ante_pico > 0 and ante_pico < len(n_inibitorio):
                 n_inibitorio[ante_pico:ante_pico+15] = 30 * forca_inibitoria
             
-            # Erro de Predição (Sinal Cortical) = Realidade - Inibição (Predição)
             forga_cortical = max(0.0, estimulo_real - forca_inibitoria)
             if pico < len(n_cortical):
                 n_cortical[pico:pico+15] = 30 * forga_cortical
                 
-            # O ERP no EEG macroscópico reflete diretamente este erro de predição cortical
             erp_shape = 5.0 * forga_cortical * np.exp(-((t_eeg - (s_time/1000))**2)/(2*0.05**2))
             erp_sinal += erp_shape
             
@@ -721,17 +769,12 @@ with tabs[5]:
     O recuo da onda fecha os canais, interrompendo a corrente e gerando uma **Hiperpolarização** imediata. Note o comportamento AC (corrente alternada) do potencial de receptor.
     """)
     
-    # Simulação do Potencial de Membrana oscilante da célula ciliada
-    # Criamos tempo suficiente para visualizar 4 ciclos da frequência escolhida
     ciclos = 4
     duracao_ms = (ciclos / freq_user) * 1000 if freq_user > 0 else 10
     t_hc = np.linspace(0, duracao_ms, 500)
     
-    # Onda sonora normalizada no tempo ajustado
     onda_estimulo = np.sin(2 * np.pi * (freq_user / 1000) * t_hc)
     
-    # Vm responde de forma assimétrica (despolariza mais fortemente do que hiperpolariza)
-    # O fator de amplitude é baseado no volume (dB) ajustado pelo usuário
     fator_amp = amp_user / 120.0
     vm_hc = -70.0 + (35.0 * onda_estimulo * (onda_estimulo > 0) * fator_amp) + (10.0 * onda_estimulo * (onda_estimulo <= 0) * fator_amp)
     
@@ -739,7 +782,6 @@ with tabs[5]:
     ax_hc.plot(t_hc, vm_hc, color='purple', lw=2.5)
     ax_hc.axhline(-70, color='black', linestyle='--', alpha=0.5, label='Repouso (-70 mV)')
     
-    # Preenchimentos visuais para destacar a função do Potássio
     ax_hc.fill_between(t_hc, -70, vm_hc, where=(vm_hc > -70), color='red', alpha=0.3, label='Despolarização (Abertura: Influxo de K+)')
     ax_hc.fill_between(t_hc, -70, vm_hc, where=(vm_hc < -70), color='blue', alpha=0.3, label='Hiperpolarização (Fechamento: K+ bloqueado)')
     
@@ -775,35 +817,32 @@ with tabs[6]:
         
     st.markdown("---")
     
-    # Parâmetros base de Izhikevich
     a, b, c_param, d = 0.02, 0.2, -65, 8
     I_base = 10
     
-    # Ajustes da Patologia (Dinâmica Matemática)
     if "Crônica" in tipo_crise:
-        c_param, d = -50, 2  # Chattering / Bursting forte
+        c_param, d = -50, 2  
         I_base = 15
     elif "Refratária" in tipo_crise:
-        a, b, c_param, d = 0.1, 0.2, -65, 2 # Fast Spiking hiperativo
+        a, b, c_param, d = 0.1, 0.2, -65, 2 
         I_base = 20
     elif "Ausência" in tipo_crise:
-        a, b, c_param, d = 0.02, 0.25, -65, 0.05 # Resonador Talâmico
+        a, b, c_param, d = 0.02, 0.25, -65, 0.05 
         I_base = 5 
         
-    # Lógica de Intervenção Farmacológica (Erro Médico Simulado)
     alerta_erro = False
     if farmaco == "Fenitoína (Bloqueador de Na+)":
         if "Ausência" in tipo_crise:
-            alerta_erro = True # Ausência não responde a Fenitoína!
+            alerta_erro = True 
         elif "Crônica" in tipo_crise or "Refratária" in tipo_crise:
-            I_base = 2 # Diminui drasticamente a corrente, suprimindo o Na+
+            I_base = 2 
     elif farmaco == "Etossuximida (Bloqueador de Ca2+ Tipo-T)":
         if "Ausência" in tipo_crise:
-            I_base = 2 # Sucesso! Bloqueia o circuito talamocortical
+            I_base = 2 
         elif "Crônica" in tipo_crise or "Refratária" in tipo_crise:
-            alerta_erro = True # Fármaco ineficaz em crises não-ausência
+            alerta_erro = True 
     elif farmaco == "Diazepam (Agonista GABAérgico)":
-        I_base -= 12 # Potencializa inibição globalmente
+        I_base -= 12 
         if I_base < 0: I_base = 0
         
     if alerta_erro:
@@ -811,8 +850,7 @@ with tabs[6]:
     elif farmaco != "Nenhum (Sem Medicação)":
         st.success("✅ **FÁRMACO ATIVO:** Observe a supressão da crise no traçado eletrofisiológico e o restabelecimento do ritmo base.")
         
-    # --- SIMULAÇÃO DE MICRO-ESCALA (Modelo de Izhikevich) ---
-    T_sim = 1000 # 1 segundo (1000 ms)
+    T_sim = 1000 
     dt = 0.5
     t_steps = int(T_sim / dt)
     v = np.zeros(t_steps)
@@ -822,24 +860,20 @@ with tabs[6]:
     
     for i in range(1, t_steps):
         I_in = I_base
-        # Se for ausência, o tálamo impulsiona uma onda senoidal lenta (~3 Hz) que ativa os canais T
         if "Ausência" in tipo_crise and I_base > 2:
             I_in = I_base + 8 * np.sin(2 * np.pi * 3 * (i * dt) / 1000)
             
-        # Método de Euler para integração
         v_next = v[i-1] + dt * (0.04 * v[i-1]**2 + 5 * v[i-1] + 140 - u[i-1] + I_in)
         u_next = u[i-1] + dt * a * (b * v[i-1] - u[i-1])
         
-        # Reset de disparo
         if v_next >= 30:
-            v[i-1] = 30 # Força o pico visual
+            v[i-1] = 30 
             v[i] = c_param
             u[i] = u_next + d
         else:
             v[i] = v_next
             u[i] = u_next
 
-    # --- SIMULAÇÃO DE MACRO-ESCALA (Sintetizador EEG) ---
     t_eeg = np.linspace(0, 3, 3000) 
     eeg = np.zeros_like(t_eeg)
     
@@ -847,23 +881,20 @@ with tabs[6]:
         eeg = 2 * np.sin(2*np.pi*10*t_eeg) + np.random.normal(0, 0.5, len(t_eeg))
     elif "Crônica" in tipo_crise:
         if I_base > 5:
-            # Mistura de ritmo basal com espículas focais intermitentes
             eeg = 15 * np.exp(-((t_eeg % 0.2 - 0.1)**2)/(2*0.01**2)) + 5 * np.sin(2*np.pi*5*t_eeg) + np.random.normal(0, 1, len(t_eeg))
-        else: # Tratado
+        else: 
             eeg = 2 * np.sin(2*np.pi*10*t_eeg) + np.random.normal(0, 0.5, len(t_eeg))
     elif "Refratária" in tipo_crise:
         if I_base > 5:
-            # Descargas elétricas de alta amplitude e frequência contínuas
             eeg = 20 * np.sin(2*np.pi*15*t_eeg) + 15 * np.sin(2*np.pi*25*t_eeg) + np.random.normal(0, 2, len(t_eeg))
-        else: # Tratado (Diazepam reduz bastante a freq)
+        else: 
             eeg = 1 * np.sin(2*np.pi*4*t_eeg) + np.random.normal(0, 0.5, len(t_eeg)) 
     elif "Ausência" in tipo_crise:
         if I_base > 2:
-            # Típico complexo Espícula-Onda (Spike and Wave) a 3 Hz
             onda = 15 * np.sin(2*np.pi*3*t_eeg)
             espícula = -25 * np.exp(-((t_eeg % (1/3) - 0.1)**2)/(2*0.005**2))
             eeg = onda + espícula + np.random.normal(0, 0.5, len(t_eeg))
-        else: # Tratado (Etossuximida)
+        else: 
             eeg = 2 * np.sin(2*np.pi*10*t_eeg) + np.random.normal(0, 0.5, len(t_eeg))
 
     fig_epi, ax_epi = plt.subplots(2, 1, figsize=(12, 8))
@@ -883,3 +914,90 @@ with tabs[6]:
     
     plt.tight_layout()
     st.pyplot(fig_epi)
+
+# ==========================================================
+# ABA 8: HEMODINÂMICA
+# ==========================================================
+with tabs[7]:
+    st.header("🩸 Hemodinâmica e Integração Sistêmica")
+    st.markdown("""
+    Este módulo integra as variáveis cardíacas com o leito vascular periférico para demonstrar a Covariância entre Frequência, Pressão e Oxigenação.
+    As equações base são: 
+    *   **Débito Cardíaco:** $\\text{DC} = \\text{FC} \\times \\text{VS}$
+    *   **Pressão Arterial Média:** $\\text{PAM} = \\text{DC} \\times \\text{RPT}$
+    *   **Lei de Poiseuille:** $\\text{Resistência} \\propto 1/r^4$
+    """)
+    
+    col_hemo1, col_hemo2, col_hemo3 = st.columns(3)
+    
+    with col_hemo1:
+        st.subheader("Bomba Cardíaca")
+        fc_hemo = st.slider("Frequência Cardíaca (BPM) [Cronotropismo]", 40, 200, 75)
+        vs_hemo = st.slider("Volume Sistólico (mL) [Inotropismo]", 40, 140, 70)
+        dc_hemo = (fc_hemo * vs_hemo) / 1000.0 # Em Litros/min
+        st.success(f"**Débito Cardíaco (DC):** {dc_hemo:.2f} L/min")
+
+    with col_hemo2:
+        st.subheader("Vasos Sanguíneos")
+        raio_perc = st.slider("Raio Arteriolar (%)", 50, 150, 100, help="<100% Vasoconstrição (Ação Simpática) | >100% Vasodilatação")
+        raio_norm = raio_perc / 100.0
+        rpt_hemo = 1.0 / (raio_norm**4) # Efeito r^4 de Poiseuille
+        st.warning(f"**Resistência Periférica Total (RPT):** {rpt_hemo:.2f} URP")
+        if raio_perc < 100:
+            st.caption("A vasoconstrição aumenta exponencialmente a resistência!")
+
+    with col_hemo3:
+        st.subheader("Oxigenação (DO2)")
+        sato2 = st.slider("Saturação Arterial de O2 (%)", 70, 100, 98)
+        hb_hemo = st.slider("Hemoglobina (g/dL)", 7.0, 20.0, 15.0, help="Normal: ~15. Policitemia: >18. Anemia: <12.")
+        
+        # Fórmula clássica da oferta de O2: DO2 = DC * (1.34 * Hb * SatO2) * 10
+        do2_hemo = dc_hemo * (1.34 * hb_hemo * (sato2/100.0)) * 10.0
+        
+        # Pressão Arterial Média (Considerando um fator base constante de 17.14 para normalizar 90mmHg em 5.25L/min e RPT 1)
+        pam_hemo = dc_hemo * rpt_hemo * 17.14
+        
+        st.error(f"**Pressão Arterial Média (PAM):** {pam_hemo:.0f} mmHg")
+        st.info(f"**Oferta de O2 (DO2):** {do2_hemo:.0f} mL/min")
+
+    st.markdown("---")
+    
+    # Gráfico de Sistematização do Fluxo de Sangue Arterial e Venoso
+    fig_press, ax_press = plt.subplots(figsize=(12, 5))
+    
+    segmentos = ['Aorta', 'Artérias\nGrandes', 'Arteríolas\n(Resistência)', 'Capilares\n(Troca)', 'Vênulas', 'Veias Cavas']
+    posicoes = np.arange(len(segmentos))
+    
+    # Geração dos pontos de pressão com base na PAM calculada
+    p_aorta = pam_hemo
+    p_arterias = pam_hemo * 0.95
+    p_arteriolas = pam_hemo * 0.40 # Queda maciça ditada pela resistência (r^4)
+    p_capilares = 20.0
+    p_venulas = 10.0
+    p_cavas = 5.0
+    
+    pressoes = [p_aorta, p_arterias, p_arteriolas, p_capilares, p_venulas, p_cavas]
+    
+    ax_press.plot(posicoes, pressoes, marker='o', markersize=10, color='crimson', lw=3)
+    ax_press.fill_between(posicoes, pressoes, color='crimson', alpha=0.1)
+    
+    ax_press.set_xticks(posicoes)
+    ax_press.set_xticklabels(segmentos)
+    ax_press.set_ylabel("Pressão Lateral (mmHg)")
+    ax_press.set_title("Gradiente de Pressão ao longo da Árvore Vascular ($\Delta$P = Fluxo Direcionado)")
+    
+    # Anotações Didáticas
+    ax_press.annotate('Alta Energia Pressórica', xy=(0, p_aorta), xytext=(0, p_aorta+20),
+                     arrowprops=dict(facecolor='black', arrowstyle='->'), ha='center')
+                     
+    ax_press.annotate('Maior Queda de Pressão\n(Poiseuille: R $\propto$ 1/r$^4$)', 
+                     xy=(2, (p_arterias+p_arteriolas)/2), xytext=(2.5, p_aorta),
+                     arrowprops=dict(facecolor='blue', arrowstyle='->'), ha='center')
+                     
+    ax_press.annotate('Retorno Venoso\n(Baixa Pressão)', xy=(5, p_cavas), xytext=(5, p_cavas+30),
+                     arrowprops=dict(facecolor='green', arrowstyle='->'), ha='center')
+
+    ax_press.set_ylim(0, max(200, pam_hemo + 40))
+    ax_press.grid(True, alpha=0.3, ls='--')
+    plt.tight_layout()
+    st.pyplot(fig_press)
