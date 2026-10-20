@@ -105,7 +105,7 @@ tabs = st.tabs([
     "👁️ Visão", 
     "👂 Audição",
     "🧠 Epilepsia",
-    "🩸 Hemodinâmica"
+    "💪 Mecânica Muscular"
 ])
 
 # ==========================================================
@@ -191,26 +191,12 @@ with tabs[1]:
         st.pyplot(fig_rc)
 
 # ==========================================================
-# ABA 3: CÉLULAS EXCITÁVEIS (PA DETALHADO E SNA)
+# ABA 3: CÉLULAS EXCITÁVEIS (PA DETALHADO)
 # ==========================================================
 with tabs[2]:
     tipo_celula = st.radio("Selecione o Tecido:", ["Neurônio (Hodgkin-Huxley)", "Músculo Esquelético", "Músculo Cardíaco"], horizontal=True)
     st.info(f"O Repouso inicial é de {vm_ghk:.1f} mV. Lembre-se: O TTX inverte o estímulo causando hiperpolarização.")
-    
-    col_exc1, col_exc2 = st.columns(2)
-    with col_exc1:
-        estimulo = st.slider("Intensidade do Estímulo Elétrico", 0.0, 50.0, 20.0)
-    with col_exc2:
-        # Modulação Autonômica Específica para o Coração
-        if tipo_celula == "Músculo Cardíaco":
-            tonus_sna = st.selectbox("Modulação do Sistema Nervoso Autônomo (SNA):", [
-                "Tônus Basal", 
-                "Ação Simpática (Noradrenalina)", 
-                "Ação Parassimpática (Acetilcolina)"
-            ])
-            st.caption("Ação em Receptores: $\\beta_1$ (Simpático) | $M_2$ (Parassimpático)")
-        else:
-            tonus_sna = "Tônus Basal"
+    estimulo = st.slider("Intensidade do Estímulo Elétrico", 0.0, 50.0, 20.0)
 
     if st.button("⚡ Executar Simulação de Potencial de Ação"):
         if tipo_celula == "Neurônio (Hodgkin-Huxley)":
@@ -220,6 +206,7 @@ with tabs[2]:
                 g_k = 36.0 if not tea else 0.0
                 g_l, e_na, e_k, e_l = 0.3, 50.0, -77.0, -54.4
                 
+                # Se TTX ativo, estímulo causa hiperpolarização profunda como proteção
                 estimulo_aplicado = -estimulo if ttx else estimulo
                 i_inj = estimulo_aplicado if 5.0 <= t <= 6.0 else 0.0
                 
@@ -283,32 +270,10 @@ with tabs[2]:
             t = np.linspace(0, t_max, 1000); dt = t[1] - t[0]
             v = np.full(1000, vm_ghk)
             gna, gk, gca = np.zeros(1000), np.zeros(1000), np.zeros(1000)
-            forca_mec = np.zeros(1000) # Tensor mecânico para simular inotropismo
-            
             fase = 0; t_f = 0
             
+            # TTX inverte o estímulo (gera hiperpolarização)
             estimulo_aplicado = -estimulo if ttx else estimulo
-
-            # Lógica Autonômica: Modulação de Parâmetros
-            limiar = -40.0
-            amp_gca = 10.0
-            vm_repouso = vm_ghk
-            tempo_plato = 200
-            fator_relaxamento = 0.05
-            
-            if tipo_celula == "Músculo Cardíaco":
-                if tonus_sna == "Ação Simpática (Noradrenalina)":
-                    limiar = -45.0          # Batmotropismo positivo (mais fácil disparar)
-                    amp_gca = 25.0          # Inotropismo positivo (muito mais Cálcio)
-                    tempo_plato = 120       # Cronotropismo positivo (encurta PA para aumentar freq)
-                    fator_relaxamento = 0.12 # Lusitropismo positivo (relaxa mais rápido via SERCA)
-                elif tonus_sna == "Ação Parassimpática (Acetilcolina)":
-                    limiar = -35.0          # Batmotropismo negativo (mais difícil disparar)
-                    amp_gca = 4.0           # Inotropismo negativo (menos Cálcio)
-                    tempo_plato = 260       # Cronotropismo negativo (alonga o PA)
-                    vm_repouso = vm_ghk - 5 # Hiperpolarização por K_ACh
-                    
-            v = np.full(1000, vm_repouso)
 
             for i in range(1, 1000):
                 if 5.0 <= t[i] <= 7.0: 
@@ -325,13 +290,10 @@ with tabs[2]:
                         if not tea: gk[i] = 20; v[i] = max(v[i-1] - 500*dt, -90)
                         if v[i] <= -89: fase = 3
                     elif fase == 0: 
-                        v[i] = v[i-1] - (v[i-1] - vm_repouso) * 0.1
-                        
-                    # Simulação de força para esquelético (menor duração)
-                    forca_mec[i] = forca_mec[i-1] + (gna[i]*0.1) - (forca_mec[i-1]*0.1)
+                        v[i] = v[i-1] - (v[i-1] - vm_ghk) * 0.1
                 
-                else: # Cardíaco
-                    if v[i] > limiar and fase == 0 and not ttx: fase = 1
+                else:
+                    if v[i] > -40 and fase == 0 and not ttx: fase = 1
                     if fase == 1:
                         gna[i] = 30; v[i] = min(v[i-1] + 600*dt, 20)
                         if v[i] >= 19: fase = 4 if verapamil else 2
@@ -339,37 +301,30 @@ with tabs[2]:
                         v[i] = max(v[i-1] - 150*dt, 5); 
                         if v[i] <= 6: fase, t_f = 3, t[i]
                     elif fase == 3:
-                        gca[i] = amp_gca; v[i] = v[i-1] - 0.05*dt
-                        if t[i] - t_f > tempo_plato: fase = 4
+                        gca[i] = 10; v[i] = v[i-1] - 0.05*dt
+                        if t[i] - t_f > 200: fase = 4
                     elif fase == 4:
                         if not tea: gk[i] = 15; v[i] = max(v[i-1] - 200*dt, -90)
                     elif fase == 0: 
-                        v[i] = v[i-1] - (v[i-1] - vm_repouso) * 0.1
-                        
-                    # Simulação de Força Cardíaca (Inotropismo) Acoplada ao Cálcio
-                    # A entrada de Cálcio (gca) gera tensão que decai com o relaxamento
-                    forca_mec[i] = max(0, forca_mec[i-1] + (gca[i] * dt * 0.8) - (forca_mec[i-1] * fator_relaxamento))
+                        v[i] = v[i-1] - (v[i-1] - vm_ghk) * 0.1
 
             i_na = gna * (v - 50.0)
             i_k = gk * (v - (-90.0))
             i_ca = gca * (v - 120.0)
 
-            # Para Músculos, adicionamos uma linha no GridSpec para a Tensão Mecânica
-            fig = plt.figure(figsize=(12, 15))
-            gs = fig.add_gridspec(4, 2)
+            fig = plt.figure(figsize=(12, 12))
+            gs = fig.add_gridspec(3, 2)
             ax1 = fig.add_subplot(gs[0, :])
             ax2 = fig.add_subplot(gs[1, :])
             ax3 = fig.add_subplot(gs[2, 0])
             ax_vi = fig.add_subplot(gs[2, 1])
-            ax_forca = fig.add_subplot(gs[3, :])
 
             cor = 'red' if "Cardíaco" in tipo_celula else 'green'
             if ttx: cor = 'gray' 
             
             ax1.plot(t, v, color=cor, lw=2.5)
-            ax1.axhline(limiar, color='orange', ls=':', label=f'Limiar ({limiar}mV)')
             ax1.axvspan(5, 7, color='yellow', alpha=0.3, label='Estímulo')
-            ax1.set_ylabel("Vm (mV)"); ax1.set_title(f"Potencial de Membrana ({tipo_celula}) - {tonus_sna}"); ax1.grid(alpha=0.3); ax1.legend()
+            ax1.set_ylabel("Vm (mV)"); ax1.set_title(f"Potencial de Membrana ({tipo_celula})"); ax1.grid(alpha=0.3); ax1.legend()
             
             ax2.plot(t, i_na, 'g', label="I_Na")
             ax2.plot(t, i_k, 'orange', label="I_K")
@@ -391,13 +346,6 @@ with tabs[2]:
             ax_vi.set_xlabel("Voltagem Vm (mV)"); ax_vi.set_ylabel("Corrente")
             ax_vi.set_title("Plano de Fase: V x I")
             ax_vi.grid(alpha=0.3); ax_vi.legend(fontsize='small')
-            
-            # Gráfico de Força (Inotropismo e Lusitropismo)
-            ax_forca.plot(t, forca_mec, color='brown', lw=3, label="Tensão Ativa")
-            ax_forca.fill_between(t, forca_mec, color='brown', alpha=0.2)
-            ax_forca.set_title("Acoplamento Excitação-Contração (Inotropismo)")
-            ax_forca.set_xlabel("Tempo (ms)"); ax_forca.set_ylabel("Força Relativa")
-            ax_forca.grid(alpha=0.3); ax_forca.legend()
             
             plt.tight_layout()
             st.pyplot(fig)
@@ -489,21 +437,26 @@ with tabs[3]:
         
         for idx, s_time in enumerate(stim_times):
             pico = int(s_time / (4000 / len(t_sim)))
+            
+            # Aleatorização do estímulo (variação natural de intensidade/ruído da via aferente)
             fator_ruido = np.random.uniform(0.85, 1.15)
             estimulo_real = int_norm * fator_ruido
             
             if pico < len(n_aferente): 
                 n_aferente[pico:pico+10] = 30 * estimulo_real
             
+            # Antecipação temporal: o interneurônio dispara ms ANTES do pico após aprender o ritmo
             forca_inibitoria = int_norm * aprendizado[idx]
             ante_pico = pico - int(60 * aprendizado[idx]) 
             if ante_pico > 0 and ante_pico < len(n_inibitorio):
                 n_inibitorio[ante_pico:ante_pico+15] = 30 * forca_inibitoria
             
+            # Erro de Predição (Sinal Cortical) = Realidade - Inibição (Predição)
             forga_cortical = max(0.0, estimulo_real - forca_inibitoria)
             if pico < len(n_cortical):
                 n_cortical[pico:pico+15] = 30 * forga_cortical
                 
+            # O ERP no EEG macroscópico reflete diretamente este erro de predição cortical
             erp_shape = 5.0 * forga_cortical * np.exp(-((t_eeg - (s_time/1000))**2)/(2*0.05**2))
             erp_sinal += erp_shape
             
@@ -536,29 +489,59 @@ with tabs[3]:
 
     elif modo == "Eletromiograma (EMG / CMAP)":
         st.markdown("**Potencial de Ação Muscular Composto (CMAP)**")
-        recrutamento = st.slider("Fibras Recrutadas pelo Estímulo (%)", 0, 100, 100) / 100.0
+        st.write("Representa a soma espaço-temporal da atividade elétrica das fibras musculares esqueléticas inervadas por um nervo motor após estimulação.")
         
+        col1, col2 = st.columns(2)
+        with col1:
+            recrutamento = st.slider("Fibras Recrutadas pelo Estímulo (%)", 0, 100, 100) / 100.0
+        with col2:
+            st.info("💡 **Farmacologia Ativa:** Se o TTX estiver ligado na barra lateral, os canais de sódio não abrem e o músculo não responde ao estímulo do nervo (CMAP zero).")
+
+        # Tempo de 0 a 20 ms
         t_cmap = np.linspace(0, 20, 1000)
         cmap_signal = np.zeros_like(t_cmap)
         
-        artefato = (-1.0 if ttx else 1.0) * np.exp(-((t_cmap - 1.0)**2) / (2 * 0.05**2))
+        # 1. Artefato do Estímulo (ocorre no momento do choque, ex: t=1.0 ms)
+        artefato = 1.0 * np.exp(-((t_cmap - 1.0)**2) / (2 * 0.05**2))
         cmap_signal += artefato
         
+        # 2. Resposta Muscular (Onda M Bifásica)
+        # Se TTX estiver activo, não há despolarização (onda_m = 0)
         if not ttx:
-            latencia = 3.5
+            latencia = 3.5  # tempo para a condução nervosa + fenda sináptica
+            # Simulação de uma onda M bifásica típica (somatório de Gaussinas)
             fase_negativa = 8.0 * recrutamento * np.exp(-((t_cmap - latencia - 1.0)**2) / (2 * 0.8**2))
             fase_positiva = -6.0 * recrutamento * np.exp(-((t_cmap - latencia - 2.5)**2) / (2 * 1.0**2))
+            
+            # Se TEA estiver activo, a repolarização (fase positiva) é prolongada
             if tea:
                 fase_positiva = -4.0 * recrutamento * np.exp(-((t_cmap - latencia - 4.0)**2) / (2 * 2.5**2))
-            cmap_signal += fase_negativa + fase_positiva
+                
+            onda_m = fase_negativa + fase_positiva
+            cmap_signal += onda_m
 
+        # Ruído elétrico basal do EMG
         cmap_signal += np.random.normal(0, 0.1, len(t_cmap))
 
+        # Plotagem do CMAP
         fig, ax = plt.subplots(figsize=(10, 5))
         ax.plot(t_cmap, cmap_signal, color='darkgreen', lw=2)
-        ax.set_title(f"Eletromiograma: CMAP (Recrutamento: {recrutamento*100:.0f}%)")
-        ax.set_xlabel("Tempo (ms)"); ax.set_ylabel("Amplitude (mV)")
+        ax.set_title(f"Eletromiograma Simulado: CMAP (Recrutamento: {recrutamento*100:.0f}%)")
+        ax.set_xlabel("Tempo (ms)")
+        ax.set_ylabel("Amplitude (mV)")
+        
+        # Anotações didáticas
+        ax.annotate('Artefato de\nEstímulo', xy=(1.0, 1.0), xytext=(1.5, 3.0),
+                    arrowprops=dict(facecolor='black', shrink=0.05, width=1, headwidth=5))
+        
+        if not ttx and recrutamento > 0:
+            ax.annotate('Latência\n(~3.5ms)', xy=(3.5, 0), xytext=(2.0, -3.0),
+                        arrowprops=dict(facecolor='gray', shrink=0.05, width=1, headwidth=5))
+            ax.annotate('Onda M\n(Despolarização)', xy=(4.5, 8.0 * recrutamento), xytext=(6.0, 6.0 * recrutamento),
+                        arrowprops=dict(facecolor='green', shrink=0.05, width=1, headwidth=5))
+            
         ax.grid(True, alpha=0.3)
+        ax.axhline(0, color='black', lw=0.8, ls='--')
         st.pyplot(fig)
 
 # ==========================================================
@@ -916,110 +899,127 @@ with tabs[6]:
     st.pyplot(fig_epi)
 
 # ==========================================================
-# ABA 8: HEMODINÂMICA
+# ABA 8: MECÂNICA MUSCULAR (Curva Comprimento-Tensão)
 # ==========================================================
 with tabs[7]:
-    st.header("🩸 Hemodinâmica e Integração Sistêmica")
-    
-    condicao_hemo = st.radio("Condição Clínica Sistêmica:", [
-        "Fisiológico (Normal)", 
-        "Insuficiência Cardíaca (Hipertrofia Hipertensiva)"
-    ], horizontal=True)
-    
+    st.header("💪 Biomecânica Muscular: Comprimento, Força e Velocidade")
     st.markdown("""
-    Este módulo integra as variáveis cardíacas com o leito vascular periférico para demonstrar a Covariância entre Frequência, Pressão e Oxigenação.
-    As equações base são: 
-    *   **Débito Cardíaco:** $\\text{DC} = \\text{FC} \\times \\text{VS}$
-    *   **Pressão Arterial Média:** $\\text{PAM} = \\text{DC} \\times \\text{RPT}$
-    *   **Lei de Poiseuille:** $\\text{Resistência} \\propto 1/r^4$
+    Esta seção ilustra a relação **Força-Comprimento** (sobreposição ideal de actina e miosina) descrita por Gordon, Huxley e Julian (1966), 
+    e a **Mecânica da Contração** descrita pelo modelo de Hill, onde a velocidade de contração difere entre os padrões isométricos e isotônicos dependendo da carga imposta.
     """)
-    
-    if condicao_hemo == "Insuficiência Cardíaca (Hipertrofia Hipertensiva)":
-        st.error("""
-        **Fisiopatologia da Insuficiência Cardíaca e Fraqueza Muscular:** 
-        A alta resistência vascular periférica crônica eleva a Pressão Arterial (aumentando a **Pós-carga**). 
-        Para vencer essa barreira, o coração sofre **Hipertrofia Concêntrica** (o miocárdio cresce para dentro, reduzindo o espaço da cavidade ventricular). 
-        Isso diminui o enchimento (Volume Diastólico Final) e gera **fraqueza miocárdica** ao longo do tempo. O **Volume Ejetado (Sistólico) cai**, reduzindo o Débito Cardíaco. 
-        Como resultado, a Oferta de Oxigênio ($DO_2$) despenca, explicando a extrema **fraqueza muscular periférica** e o cansaço do paciente ao esforço, *mesmo com a pressão arterial ainda elevada*.
-        """)
-        vs_default = 35
-        raio_default = 75
-        fc_default = 95 # Taquicardia compensatória basal
+
+    col_m1, col_m2 = st.columns(2)
+    with col_m1:
+        comp_sarc = st.slider("Comprimento Inicial do Sarcômero (µm)", 1.2, 3.6, 2.2, step=0.1)
+        st.info("💡 **Otimização:** O comprimento ótimo ($L_0$) situa-se entre 2.0 e 2.2 µm, onde ocorre a intersecção máxima e perfeita das pontes cruzadas. Comprimentos excessivos reduzem a força ativa, mas ativam o apoio elástico passivo dos tendões e fáscias (Titina).")
+
+    with col_m2:
+        carga_kg = st.slider("Carga Aplicada ao Músculo (Peso em kg)", 0.0, 120.0, 50.0, step=1.0)
+
+    # 1. Modelo Matemático da Tensão em Função do Comprimento
+    l_array = np.linspace(1.2, 3.8, 200)
+    # Tensão Ativa (Gaussiana/Poligonal simplificada baseada na sobreposição das pontes)
+    t_ativa = np.interp(l_array, [1.2, 1.6, 2.0, 2.2, 3.6], [0, 80, 100, 100, 0])
+    # Tensão Passiva (Apoio elástico de tendões, tecido conjuntivo e Titina - começa após o comprimento ótimo)
+    t_passiva = np.where(l_array > 2.0, 15 * np.exp(1.5 * (l_array - 2.0)) - 15, 0)
+    t_total = t_ativa + t_passiva
+
+    # Capacidade Atual baseada no slider do aluno
+    f_max_ativa = np.interp(comp_sarc, [1.2, 1.6, 2.0, 2.2, 3.6], [0, 80, 100, 100, 0])
+    f_passiva_atual = 15 * np.exp(1.5 * (comp_sarc - 2.0)) - 15 if comp_sarc > 2.0 else 0
+
+    # 2. Simulação no Tempo (Isotônica vs Isométrica)
+    t_mech = np.linspace(0, 300, 500)
+    # Transiente de Cálcio impulsionando o "Estado Ativo" do músculo
+    estado_ativo = np.where(t_mech > 20, ((t_mech - 20) / 30) * np.exp(1 - (t_mech - 20) / 30), 0)
+    forca_muscular_potencial = estado_ativo * f_max_ativa
+
+    forca_gerada = np.zeros_like(t_mech)
+    encurtamento = np.zeros_like(t_mech)
+    is_isotonica = False
+
+    # Lógica de Contração
+    if carga_kg < f_max_ativa and carga_kg > 0:
+        is_isotonica = True
+        for i in range(len(t_mech)):
+            if forca_muscular_potencial[i] > carga_kg:
+                # O músculo só gera a força exata necessária para erguer a carga
+                forca_gerada[i] = carga_kg
+                # Equação da Velocidade de Hill: (F + a)v = b(Fmax - F)
+                a_hill, b_hill = 25.0, 0.8
+                velocidade = b_hill * (forca_muscular_potencial[i] - carga_kg) / (carga_kg + a_hill)
+                encurtamento[i] = encurtamento[i-1] + velocidade * (t_mech[1]-t_mech[0]) if i > 0 else 0
+            else:
+                forca_gerada[i] = forca_muscular_potencial[i]
+                encurtamento[i] = encurtamento[i-1] if i > 0 else 0
     else:
-        vs_default = 70
-        raio_default = 100
-        fc_default = 75
+        # Isométrica (A carga é muito pesada, ou zero)
+        forca_gerada = forca_muscular_potencial
+        encurtamento = np.zeros_like(t_mech)
+        is_isotonica = False if carga_kg > 0 else True # Lógica de sem peso
 
-    col_hemo1, col_hemo2, col_hemo3 = st.columns(3)
-    
-    with col_hemo1:
-        st.subheader("Bomba Cardíaca")
-        fc_hemo = st.slider("Frequência Cardíaca (BPM) [Cronotropismo]", 40, 200, fc_default, key=f"fc_{condicao_hemo}")
-        vs_hemo = st.slider("Volume Sistólico (mL) [Inotropismo]", 20, 140, vs_default, key=f"vs_{condicao_hemo}")
-        dc_hemo = (fc_hemo * vs_hemo) / 1000.0 # Em Litros/min
-        st.success(f"**Débito Cardíaco (DC):** {dc_hemo:.2f} L/min")
+    st.subheader("Análise Gráfica Biomecânica")
+    fig_mech = plt.figure(figsize=(14, 10))
+    gs = fig_mech.add_gridspec(2, 2)
 
-    with col_hemo2:
-        st.subheader("Vasos Sanguíneos")
-        raio_perc = st.slider("Raio Arteriolar (%)", 40, 150, raio_default, key=f"raio_{condicao_hemo}", help="<100% Vasoconstrição (Ação Simpática) | >100% Vasodilatação")
-        raio_norm = raio_perc / 100.0
-        rpt_hemo = 1.0 / (raio_norm**4) # Efeito r^4 de Poiseuille
-        st.warning(f"**Resistência Periférica Total (RPT):** {rpt_hemo:.2f} URP")
-        if raio_perc < 100:
-            st.caption("A vasoconstrição aumenta exponencialmente a resistência!")
+    # Gráfico A: Força x Comprimento
+    ax1 = fig_mech.add_subplot(gs[0, 0])
+    ax1.plot(l_array, t_ativa, 'g', lw=2.5, label='Tensão Ativa (Miofibrilas)')
+    ax1.plot(l_array, t_passiva, 'b', lw=2.5, label='Tensão Passiva (Titina e Tendões)')
+    ax1.plot(l_array, t_total, 'k--', lw=2, label='Tensão Total')
+    ax1.plot(comp_sarc, f_max_ativa + f_passiva_atual, 'ro', markersize=10, label='Estado/Comprimento Atual')
+    ax1.set_title("Curva Clássica de Relação Força-Comprimento")
+    ax1.set_xlabel("Comprimento Inicial do Sarcômero (µm)")
+    ax1.set_ylabel("Capacidade de Tensão (%)")
+    ax1.grid(alpha=0.3); ax1.legend()
 
-    with col_hemo3:
-        st.subheader("Oxigenação (DO2)")
-        sato2 = st.slider("Saturação Arterial de O2 (%)", 70, 100, 98, key=f"sat_{condicao_hemo}")
-        hb_hemo = st.slider("Hemoglobina (g/dL)", 7.0, 20.0, 15.0, key=f"hb_{condicao_hemo}", help="Normal: ~15. Policitemia: >18. Anemia: <12.")
-        
-        # Fórmula clássica da oferta de O2: DO2 = DC * (1.34 * Hb * SatO2) * 10
-        do2_hemo = dc_hemo * (1.34 * hb_hemo * (sato2/100.0)) * 10.0
-        
-        # Pressão Arterial Média (Considerando um fator base constante de 17.14 para normalizar 90mmHg em 5.25L/min e RPT 1)
-        pam_hemo = dc_hemo * rpt_hemo * 17.14
-        
-        st.error(f"**Pressão Arterial Média (PAM):** {pam_hemo:.0f} mmHg")
-        st.info(f"**Oferta de O2 (DO2):** {do2_hemo:.0f} mL/min")
+    # Gráfico B: Esquemático do Sarcômero
+    ax2 = fig_mech.add_subplot(gs[0, 1])
+    ax2.set_xlim(-2.5, 2.5)
+    ax2.set_ylim(-1, 1)
+    ax2.axis('off')
+    ax2.set_title("Visão Estrutural: Sobreposição Actina-Miosina")
+    
+    z_pos = comp_sarc / 2
+    # Desenho dos Discos Z
+    ax2.vlines([-z_pos, z_pos], -0.6, 0.6, color='blue', lw=5, label='Discos Z')
+    # Miosina (Filamentos Grossos no centro)
+    m_len = 1.6
+    ax2.hlines([0, 0.15, -0.15], -m_len/2, m_len/2, color='red', lw=4, label='Miosina')
+    # Actina (Filamentos Finos presos aos Discos Z)
+    a_len = 1.0
+    ax2.hlines([0.08, 0.22], -z_pos, -z_pos + a_len, color='green', lw=2, label='Actina')
+    ax2.hlines([-0.08, -0.22], -z_pos, -z_pos + a_len, color='green', lw=2)
+    ax2.hlines([0.08, 0.22], z_pos - a_len, z_pos, color='green', lw=2)
+    ax2.hlines([-0.08, -0.22], z_pos - a_len, z_pos, color='green', lw=2)
+    ax2.legend(loc='lower center', ncol=3)
 
-    st.markdown("---")
-    
-    # Gráfico de Sistematização do Fluxo de Sangue Arterial e Venoso
-    fig_press, ax_press = plt.subplots(figsize=(12, 5))
-    
-    segmentos = ['Aorta', 'Artérias\nGrandes', 'Arteríolas\n(Resistência)', 'Capilares\n(Troca)', 'Vênulas', 'Veias Cavas']
-    posicoes = np.arange(len(segmentos))
-    
-    # Geração dos pontos de pressão com base na PAM calculada
-    p_aorta = pam_hemo
-    p_arterias = pam_hemo * 0.95
-    p_arteriolas = pam_hemo * 0.40 # Queda maciça ditada pela resistência (r^4)
-    p_capilares = 20.0
-    p_venulas = 10.0
-    p_cavas = 5.0
-    
-    pressoes = [p_aorta, p_arterias, p_arteriolas, p_capilares, p_venulas, p_cavas]
-    
-    ax_press.plot(posicoes, pressoes, marker='o', markersize=10, color='crimson', lw=3)
-    ax_press.fill_between(posicoes, pressoes, color='crimson', alpha=0.1)
-    
-    ax_press.set_xticks(posicoes)
-    ax_press.set_xticklabels(segmentos)
-    ax_press.set_ylabel("Pressão Lateral (mmHg)")
-    ax_press.set_title("Gradiente de Pressão ao longo da Árvore Vascular ($\Delta$P = Fluxo Direcionado)")
-    
-    # Anotações Didáticas
-    ax_press.annotate('Alta Energia Pressórica', xy=(0, p_aorta), xytext=(0, p_aorta+20),
-                     arrowprops=dict(facecolor='black', arrowstyle='->'), ha='center')
-                     
-    ax_press.annotate('Maior Queda de Pressão\n(Poiseuille: R $\propto$ 1/r$^4$)', 
-                     xy=(2, (p_arterias+p_arteriolas)/2), xytext=(2.5, p_aorta),
-                     arrowprops=dict(facecolor='blue', arrowstyle='->'), ha='center')
-                     
-    ax_press.annotate('Retorno Venoso\n(Baixa Pressão)', xy=(5, p_cavas), xytext=(5, p_cavas+30),
-                     arrowprops=dict(facecolor='green', arrowstyle='->'), ha='center')
+    # Gráfico C: Dinâmica da Força no Tempo
+    ax3 = fig_mech.add_subplot(gs[1, 0])
+    ax3.plot(t_mech, forca_gerada, 'r', lw=2.5, label=f'Força Ativa Executada')
+    if is_isotonica and carga_kg > 0:
+        ax3.axhline(carga_kg, color='k', ls='--', label='Carga (Peso)')
+    ax3.plot(t_mech, forca_muscular_potencial, 'gray', ls=':', lw=2, label='Capacidade Máxima Oculta')
+    ax3.set_title("Desenvolvimento de Força no Tempo")
+    ax3.set_xlabel("Tempo (ms)")
+    ax3.set_ylabel("Força Gerada (kg)")
+    ax3.grid(alpha=0.3); ax3.legend()
 
-    ax_press.set_ylim(0, max(200, pam_hemo + 40))
-    ax_press.grid(True, alpha=0.3, ls='--')
+    # Gráfico D: Cinemática do Encurtamento (Velocidade)
+    ax4 = fig_mech.add_subplot(gs[1, 1])
+    ax4.plot(t_mech, encurtamento, 'purple', lw=3, label='Deslocamento Isotônico')
+    ax4.set_title("Cinemática do Encurtamento Muscular (Velocidade)")
+    ax4.set_xlabel("Tempo (ms)")
+    ax4.set_ylabel("Encurtamento Total Relativo")
+    ax4.grid(alpha=0.3); ax4.legend(loc='upper right')
+
     plt.tight_layout()
-    st.pyplot(fig_press)
+    st.pyplot(fig_mech)
+
+    # Lógica Pedagógica Diagnóstica
+    if not is_isotonica and carga_kg > 0:
+        st.error(f"⚠️ **Contração Estática Isométrica!** A carga exigida pelo ambiente ({carga_kg} kg) é superior à força ativa que o sarcômero consegue gerar neste comprimento inicial ({f_max_ativa:.1f} kg). Como resultado, o músculo não consegue encurtar para erguer o peso e o trabalho mecânico isotônico não ocorre.")
+    elif is_isotonica and carga_kg > 0:
+        st.success(f"✅ **Contração Isotônica Funcional!** A força superou a carga. Observe no gráfico roxo que o músculo começa a encurtar exatamente no momento em que a força empata com o peso da carga. Quanto mais leve for o peso que você escolher, mais rápida será a curva roxa (Equação de Força-Velocidade de Hill).")
+    else:
+        st.info("Músculo movendo-se sem carga livremente.")
