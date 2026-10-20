@@ -105,6 +105,7 @@ tabs = st.tabs([
     "👁️ Visão", 
     "👂 Audição",
     "🧠 Epilepsia",
+	"🩸 Hemodinâmica",
     "💪 Mecânica Muscular"
 ])
 
@@ -899,9 +900,119 @@ with tabs[6]:
     st.pyplot(fig_epi)
 
 # ==========================================================
-# ABA 8: MECÂNICA MUSCULAR (Curva Comprimento-Tensão)
+# ABA 8: HEMODINÂMICA
 # ==========================================================
 with tabs[7]:
+    st.header("🩸 Hemodinâmica e Integração Sistêmica")
+    
+    condicao_hemo = st.radio("Condição Clínica Sistêmica:", [
+        "Fisiológico (Normal)", 
+        "Insuficiência Cardíaca (Hipertrofia Hipertensiva)"
+    ], horizontal=True)
+    
+    st.markdown("""
+    Este módulo integra as variáveis cardíacas com o leito vascular periférico para demonstrar a Covariância entre Frequência, Pressão e Oxigenação.
+    As equações base são: 
+    *   **Débito Cardíaco:** $\\text{DC} = \\text{FC} \\times \\text{VS}$
+    *   **Pressão Arterial Média:** $\\text{PAM} = \\text{DC} \\times \\text{RPT}$
+    *   **Lei de Poiseuille:** $\\text{Resistência} \\propto 1/r^4$
+    """)
+    
+    if condicao_hemo == "Insuficiência Cardíaca (Hipertrofia Hipertensiva)":
+        st.error("""
+        **Fisiopatologia da Insuficiência Cardíaca e Fraqueza Muscular:** 
+        A alta resistência vascular periférica crônica eleva a Pressão Arterial (aumentando a **Pós-carga**). 
+        Para vencer essa barreira, o coração sofre **Hipertrofia Concêntrica** (o miocárdio cresce para dentro, reduzindo o espaço da cavidade ventricular). 
+        Isso diminui o enchimento (Volume Diastólico Final) e gera **fraqueza miocárdica** ao longo do tempo. O **Volume Ejetado (Sistólico) cai**, reduzindo o Débito Cardíaco. 
+        Como resultado, a Oferta de Oxigênio ($DO_2$) despenca, explicando a extrema **fraqueza muscular periférica** e o cansaço do paciente ao esforço, *mesmo com a pressão arterial ainda elevada*.
+        """)
+        vs_default = 35
+        raio_default = 75
+        fc_default = 95 # Taquicardia compensatória basal
+    else:
+        vs_default = 70
+        raio_default = 100
+        fc_default = 75
+
+    col_hemo1, col_hemo2, col_hemo3 = st.columns(3)
+    
+    with col_hemo1:
+        st.subheader("Bomba Cardíaca")
+        fc_hemo = st.slider("Frequência Cardíaca (BPM) [Cronotropismo]", 40, 200, fc_default, key=f"fc_{condicao_hemo}")
+        vs_hemo = st.slider("Volume Sistólico (mL) [Inotropismo]", 20, 140, vs_default, key=f"vs_{condicao_hemo}")
+        dc_hemo = (fc_hemo * vs_hemo) / 1000.0 # Em Litros/min
+        st.success(f"**Débito Cardíaco (DC):** {dc_hemo:.2f} L/min")
+
+    with col_hemo2:
+        st.subheader("Vasos Sanguíneos")
+        raio_perc = st.slider("Raio Arteriolar (%)", 40, 150, raio_default, key=f"raio_{condicao_hemo}", help="<100% Vasoconstrição (Ação Simpática) | >100% Vasodilatação")
+        raio_norm = raio_perc / 100.0
+        rpt_hemo = 1.0 / (raio_norm**4) # Efeito r^4 de Poiseuille
+        st.warning(f"**Resistência Periférica Total (RPT):** {rpt_hemo:.2f} URP")
+        if raio_perc < 100:
+            st.caption("A vasoconstrição aumenta exponencialmente a resistência!")
+
+    with col_hemo3:
+        st.subheader("Oxigenação (DO2)")
+        sato2 = st.slider("Saturação Arterial de O2 (%)", 70, 100, 98, key=f"sat_{condicao_hemo}")
+        hb_hemo = st.slider("Hemoglobina (g/dL)", 7.0, 20.0, 15.0, key=f"hb_{condicao_hemo}", help="Normal: ~15. Policitemia: >18. Anemia: <12.")
+        
+        # Fórmula clássica da oferta de O2: DO2 = DC * (1.34 * Hb * SatO2) * 10
+        do2_hemo = dc_hemo * (1.34 * hb_hemo * (sato2/100.0)) * 10.0
+        
+        # Pressão Arterial Média (Considerando um fator base constante de 17.14 para normalizar 90mmHg em 5.25L/min e RPT 1)
+        pam_hemo = dc_hemo * rpt_hemo * 17.14
+        
+        st.error(f"**Pressão Arterial Média (PAM):** {pam_hemo:.0f} mmHg")
+        st.info(f"**Oferta de O2 (DO2):** {do2_hemo:.0f} mL/min")
+
+    st.markdown("---")
+    
+    # Gráfico de Sistematização do Fluxo de Sangue Arterial e Venoso
+    fig_press, ax_press = plt.subplots(figsize=(12, 5))
+    
+    segmentos = ['Aorta', 'Artérias\nGrandes', 'Arteríolas\n(Resistência)', 'Capilares\n(Troca)', 'Vênulas', 'Veias Cavas']
+    posicoes = np.arange(len(segmentos))
+    
+    # Geração dos pontos de pressão com base na PAM calculada
+    p_aorta = pam_hemo
+    p_arterias = pam_hemo * 0.95
+    p_arteriolas = pam_hemo * 0.40 # Queda maciça ditada pela resistência (r^4)
+    p_capilares = 20.0
+    p_venulas = 10.0
+    p_cavas = 5.0
+    
+    pressoes = [p_aorta, p_arterias, p_arteriolas, p_capilares, p_venulas, p_cavas]
+    
+    ax_press.plot(posicoes, pressoes, marker='o', markersize=10, color='crimson', lw=3)
+    ax_press.fill_between(posicoes, pressoes, color='crimson', alpha=0.1)
+    
+    ax_press.set_xticks(posicoes)
+    ax_press.set_xticklabels(segmentos)
+    ax_press.set_ylabel("Pressão Lateral (mmHg)")
+    ax_press.set_title("Gradiente de Pressão ao longo da Árvore Vascular ($\Delta$P = Fluxo Direcionado)")
+    
+    # Anotações Didáticas
+    ax_press.annotate('Alta Energia Pressórica', xy=(0, p_aorta), xytext=(0, p_aorta+20),
+                     arrowprops=dict(facecolor='black', arrowstyle='->'), ha='center')
+                     
+    ax_press.annotate('Maior Queda de Pressão\n(Poiseuille: R $\propto$ 1/r$^4$)', 
+                     xy=(2, (p_arterias+p_arteriolas)/2), xytext=(2.5, p_aorta),
+                     arrowprops=dict(facecolor='blue', arrowstyle='->'), ha='center')
+                     
+    ax_press.annotate('Retorno Venoso\n(Baixa Pressão)', xy=(5, p_cavas), xytext=(5, p_cavas+30),
+                     arrowprops=dict(facecolor='green', arrowstyle='->'), ha='center')
+
+    ax_press.set_ylim(0, max(200, pam_hemo + 40))
+    ax_press.grid(True, alpha=0.3, ls='--')
+    plt.tight_layout()
+    st.pyplot(fig_press)
+
+
+# ==========================================================
+# ABA 9: MECÂNICA MUSCULAR (Curva Comprimento-Tensão)
+# ==========================================================
+with tabs[8]:
     st.header("💪 Biomecânica Muscular: Comprimento, Força e Velocidade")
     st.markdown("""
     Esta seção ilustra a relação **Força-Comprimento** (sobreposição ideal de actina e miosina) descrita por Gordon, Huxley e Julian (1966), 
