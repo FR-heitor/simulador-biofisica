@@ -920,6 +920,12 @@ with tabs[6]:
 # ==========================================================
 with tabs[7]:
     st.header("🩸 Hemodinâmica e Integração Sistêmica")
+    
+    condicao_hemo = st.radio("Condição Clínica Sistêmica:", [
+        "Fisiológico (Normal)", 
+        "Insuficiência Cardíaca (Hipertrofia Hipertensiva)"
+    ], horizontal=True)
+    
     st.markdown("""
     Este módulo integra as variáveis cardíacas com o leito vascular periférico para demonstrar a Covariância entre Frequência, Pressão e Oxigenação.
     As equações base são: 
@@ -928,18 +934,34 @@ with tabs[7]:
     *   **Lei de Poiseuille:** $\\text{Resistência} \\propto 1/r^4$
     """)
     
+    if condicao_hemo == "Insuficiência Cardíaca (Hipertrofia Hipertensiva)":
+        st.error("""
+        **Fisiopatologia da Insuficiência Cardíaca e Fraqueza Muscular:** 
+        A alta resistência vascular periférica crônica eleva a Pressão Arterial (aumentando a **Pós-carga**). 
+        Para vencer essa barreira, o coração sofre **Hipertrofia Concêntrica** (o miocárdio cresce para dentro, reduzindo o espaço da cavidade ventricular). 
+        Isso diminui o enchimento (Volume Diastólico Final) e gera **fraqueza miocárdica** ao longo do tempo. O **Volume Ejetado (Sistólico) cai**, reduzindo o Débito Cardíaco. 
+        Como resultado, a Oferta de Oxigênio ($DO_2$) despenca, explicando a extrema **fraqueza muscular periférica** e o cansaço do paciente ao esforço, *mesmo com a pressão arterial ainda elevada*.
+        """)
+        vs_default = 35
+        raio_default = 75
+        fc_default = 95 # Taquicardia compensatória basal
+    else:
+        vs_default = 70
+        raio_default = 100
+        fc_default = 75
+
     col_hemo1, col_hemo2, col_hemo3 = st.columns(3)
     
     with col_hemo1:
         st.subheader("Bomba Cardíaca")
-        fc_hemo = st.slider("Frequência Cardíaca (BPM) [Cronotropismo]", 40, 200, 75)
-        vs_hemo = st.slider("Volume Sistólico (mL) [Inotropismo]", 40, 140, 70)
+        fc_hemo = st.slider("Frequência Cardíaca (BPM) [Cronotropismo]", 40, 200, fc_default, key=f"fc_{condicao_hemo}")
+        vs_hemo = st.slider("Volume Sistólico (mL) [Inotropismo]", 20, 140, vs_default, key=f"vs_{condicao_hemo}")
         dc_hemo = (fc_hemo * vs_hemo) / 1000.0 # Em Litros/min
         st.success(f"**Débito Cardíaco (DC):** {dc_hemo:.2f} L/min")
 
     with col_hemo2:
         st.subheader("Vasos Sanguíneos")
-        raio_perc = st.slider("Raio Arteriolar (%)", 50, 150, 100, help="<100% Vasoconstrição (Ação Simpática) | >100% Vasodilatação")
+        raio_perc = st.slider("Raio Arteriolar (%)", 40, 150, raio_default, key=f"raio_{condicao_hemo}", help="<100% Vasoconstrição (Ação Simpática) | >100% Vasodilatação")
         raio_norm = raio_perc / 100.0
         rpt_hemo = 1.0 / (raio_norm**4) # Efeito r^4 de Poiseuille
         st.warning(f"**Resistência Periférica Total (RPT):** {rpt_hemo:.2f} URP")
@@ -948,8 +970,8 @@ with tabs[7]:
 
     with col_hemo3:
         st.subheader("Oxigenação (DO2)")
-        sato2 = st.slider("Saturação Arterial de O2 (%)", 70, 100, 98)
-        hb_hemo = st.slider("Hemoglobina (g/dL)", 7.0, 20.0, 15.0, help="Normal: ~15. Policitemia: >18. Anemia: <12.")
+        sato2 = st.slider("Saturação Arterial de O2 (%)", 70, 100, 98, key=f"sat_{condicao_hemo}")
+        hb_hemo = st.slider("Hemoglobina (g/dL)", 7.0, 20.0, 15.0, key=f"hb_{condicao_hemo}", help="Normal: ~15. Policitemia: >18. Anemia: <12.")
         
         # Fórmula clássica da oferta de O2: DO2 = DC * (1.34 * Hb * SatO2) * 10
         do2_hemo = dc_hemo * (1.34 * hb_hemo * (sato2/100.0)) * 10.0
