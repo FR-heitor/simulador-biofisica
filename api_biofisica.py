@@ -811,7 +811,7 @@ with tabs[5]:
     O gráfico à direita simula o **Potencial de Ação Composto** (Eletrococleografia), exibindo a oscilação do Potencial Microfônico seguida pelo disparo massivo e sincronizado do nervo (Onda N1).
     """)
 
-        col_ev1, col_ev2 = st.columns(2)
+    col_ev1, col_ev2 = st.columns(2)
 
     with col_ev1:
         # 1. Curva de Saturação (Taxa de Disparo x dB)
