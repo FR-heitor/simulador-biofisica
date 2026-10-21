@@ -358,9 +358,9 @@ with tabs[3]:
     st.subheader("Simulação de Bio-sinais Macroscópicos")
     modo = st.radio("Selecione o Exame:", ["Eletrocardiograma (ECG)", "Eletroencefalograma (EEG)", "Eletromiograma (EMG / CMAP)"], horizontal=True)
     st.markdown("---")
-    
+	
 	if modo == "Eletrocardiograma (ECG)":
-        patologia = st.selectbox("Condição Cardíaca:", ["Ritmo Sinusal Normal", "Fibrilação Atrial (Patologia Atrial)", "Taquicardia Ventricular (Patologia Ventricular)"])
+		patologia = st.selectbox("Condição Cardíaca:", ["Ritmo Sinusal Normal", "Fibrilação Atrial (Patologia Atrial)", "Taquicardia Ventricular (Patologia Ventricular)"])
         
         # Modulação Autonômica
         tonus_ecg = st.radio("Influência Autonômica:", ["Tônus Basal", "Estimulação Simpática (Taquicardia/Inotropismo)", "Estimulação Parassimpática (Bradicardia/Atraso AV)"], horizontal=True)
@@ -426,8 +426,8 @@ with tabs[3]:
         ax.set_xlabel("Tempo (s)"); ax.set_ylabel("mV")
         ax.grid(True, which='both', color='red', alpha=0.2)
         st.pyplot(fig)
-    
-    elif modo == "Eletroencefalograma (EEG)":
+	
+	elif modo == "Eletroencefalograma (EEG)":
 		st.markdown("""
         ### Neurociência Sistêmica e Codificação Preditiva
         O cérebro atua ativamente para **cancelar estímulos previsíveis** e economizar energia metabólica. 
