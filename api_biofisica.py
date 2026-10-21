@@ -858,7 +858,7 @@ with tabs[5]:
         ax_ev.axhline(0, color='black', lw=0.5, ls='--')
         
         if fator_evocado > 0.1:
-            ax_ev.annotate('Onda N1\n(Disparo do Nervo)', xy=(latencia_n1, n1.min()), xytext=(latencia_n1 + 1.5, n1.min() - 1),
+            ax_ev.annotate('Onda N1\n(Disparo do Nervo)', xy=(latencia_n1, n1.min()), xytext=(latencia_n1 + 1.5, n1.min() - 2),
                          arrowprops=dict(facecolor='red', shrink=0.05, width=1, headwidth=5))
             ax_ev.annotate('Microfônico\n(Células Ciliadas)', xy=(0.5, microfonico[25]), xytext=(0.5, 3),
                          arrowprops=dict(facecolor='blue', shrink=0.05, width=1, headwidth=5))
