@@ -811,7 +811,7 @@ with tabs[5]:
     O gráfico à direita simula o **Potencial de Ação Composto** (Eletrococleografia), exibindo a oscilação do Potencial Microfônico seguida pelo disparo massivo e sincronizado do nervo (Onda N1).
     """)
 
-    col_ev1, col_ev2 = st.columns(2)
+        col_ev1, col_ev2 = st.columns(2)
 
     with col_ev1:
         # 1. Curva de Saturação (Taxa de Disparo x dB)
@@ -825,11 +825,11 @@ with tabs[5]:
         ax_sat.plot(amp_user, taxa_atual, 'ro', markersize=10, label=f"Estímulo Atual ({amp_user} dB)")
         
         ax_sat.axvline(amp_user, color='r', linestyle='--', alpha=0.5)
-        ax_sat.axhline(300, color='gray', linestyle=':', label='Saturação Máxima (~300 Hz)')
+        ax_sat.axhline(300, color='gray', linestyle=':', label='Saturação Máxima (~300 impulsos/s)')
         
         ax_sat.set_title("Saturação Fisiológica da Via Auditiva")
-        ax_sat.set_xlabel("Intensidade do Som (dB)")
-        ax_sat.set_ylabel("Taxa de Disparo (Potenciais/s)")
+        ax_sat.set_xlabel("Nível do Som / Intensidade (dB)")
+        ax_sat.set_ylabel("Taxa de Disparo (impulsos/s)")
         ax_sat.grid(True, alpha=0.3)
         ax_sat.legend(loc='upper left', fontsize='small')
         st.pyplot(fig_sat)
@@ -858,7 +858,7 @@ with tabs[5]:
         ax_ev.axhline(0, color='black', lw=0.5, ls='--')
         
         if fator_evocado > 0.1:
-            ax_ev.annotate('Onda N1\n(Disparo do Nervo)', xy=(latencia_n1, n1.min()), xytext=(latencia_n1 + 1.5, n1.min() - 2),
+            ax_ev.annotate('Onda N1\n(Disparo do Nervo)', xy=(latencia_n1, n1.min()), xytext=(latencia_n1 + 1.5, n1.min() - 1),
                          arrowprops=dict(facecolor='red', shrink=0.05, width=1, headwidth=5))
             ax_ev.annotate('Microfônico\n(Células Ciliadas)', xy=(0.5, microfonico[25]), xytext=(0.5, 3),
                          arrowprops=dict(facecolor='blue', shrink=0.05, width=1, headwidth=5))
