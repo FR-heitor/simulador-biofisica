@@ -359,8 +359,8 @@ with tabs[3]:
     modo = st.radio("Selecione o Exame:", ["Eletrocardiograma (ECG)", "Eletroencefalograma (EEG)", "Eletromiograma (EMG / CMAP)"], horizontal=True)
     st.markdown("---")
 	
-	if modo == "Eletrocardiograma (ECG)":
-		patologia = st.selectbox("Condição Cardíaca:", ["Ritmo Sinusal Normal", "Fibrilação Atrial (Patologia Atrial)", "Taquicardia Ventricular (Patologia Ventricular)"])
+    if modo == "Eletrocardiograma (ECG)":
+        patologia = st.selectbox("Condição Cardíaca:", ["Ritmo Sinusal Normal", "Fibrilação Atrial (Patologia Atrial)", "Taquicardia Ventricular (Patologia Ventricular)"])
         
         # Modulação Autonômica
         tonus_ecg = st.radio("Influência Autonômica:", ["Tônus Basal", "Estimulação Simpática (Taquicardia/Inotropismo)", "Estimulação Parassimpática (Bradicardia/Atraso AV)"], horizontal=True)
@@ -427,8 +427,8 @@ with tabs[3]:
         ax.grid(True, which='both', color='red', alpha=0.2)
         st.pyplot(fig)
 	
-	elif modo == "Eletroencefalograma (EEG)":
-		st.markdown("""
+    elif modo == "Eletroencefalograma (EEG)":
+        st.markdown("""
         ### Neurociência Sistêmica e Codificação Preditiva
         O cérebro atua ativamente para **cancelar estímulos previsíveis** e economizar energia metabólica. 
         Abaixo, você pode aplicar estímulos repetitivos. Observe como o interneurônio inibitório **aprende** o ritmo 
