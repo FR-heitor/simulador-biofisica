@@ -359,7 +359,7 @@ with tabs[3]:
     modo = st.radio("Selecione o Exame:", ["Eletrocardiograma (ECG)", "Eletroencefalograma (EEG)", "Eletromiograma (EMG / CMAP)"], horizontal=True)
     st.markdown("---")
     
-     if modo == "Eletrocardiograma (ECG)":
+	if modo == "Eletrocardiograma (ECG)":
         patologia = st.selectbox("Condição Cardíaca:", ["Ritmo Sinusal Normal", "Fibrilação Atrial (Patologia Atrial)", "Taquicardia Ventricular (Patologia Ventricular)"])
         
         # Modulação Autonômica
