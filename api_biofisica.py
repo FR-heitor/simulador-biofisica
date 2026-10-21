@@ -359,10 +359,20 @@ with tabs[3]:
     modo = st.radio("Selecione o Exame:", ["Eletrocardiograma (ECG)", "Eletroencefalograma (EEG)", "Eletromiograma (EMG / CMAP)"], horizontal=True)
     st.markdown("---")
     
-    if modo == "Eletrocardiograma (ECG)":
+     if modo == "Eletrocardiograma (ECG)":
         patologia = st.selectbox("Condição Cardíaca:", ["Ritmo Sinusal Normal", "Fibrilação Atrial (Patologia Atrial)", "Taquicardia Ventricular (Patologia Ventricular)"])
-        bpm = 75 if patologia == "Ritmo Sinusal Normal" else (160 if "Taquicardia" in patologia else 90)
-        bpm = st.slider("Frequência Cardíaca Média (BPM)", 40, 200, bpm)
+        
+        # Modulação Autonômica
+        tonus_ecg = st.radio("Influência Autonômica:", ["Tônus Basal", "Estimulação Simpática (Taquicardia/Inotropismo)", "Estimulação Parassimpática (Bradicardia/Atraso AV)"], horizontal=True)
+        
+        bpm_base = 75 if patologia == "Ritmo Sinusal Normal" else (160 if "Taquicardia" in patologia else 90)
+        if tonus_ecg == "Estimulação Simpática (Taquicardia/Inotropismo)" and patologia == "Ritmo Sinusal Normal":
+            bpm_base = 120
+        elif tonus_ecg == "Estimulação Parassimpática (Bradicardia/Atraso AV)" and patologia == "Ritmo Sinusal Normal":
+            bpm_base = 45
+            
+        bpm = st.slider("Frequência Cardíaca Média (BPM)", 30, 250, bpm_base)
+        
         fs = 500
         t_ecg = np.linspace(0, 5, 5 * fs)
         ecg = np.zeros_like(t_ecg)
@@ -373,6 +383,13 @@ with tabs[3]:
             if patologia == "Fibrilação Atrial (Patologia Atrial)": curr_t += np.random.uniform(0.4, 1.2) 
             else: curr_t += 60.0 / bpm
 
+        # Atraso AV (Intervalo PR) modulado pelo SNA
+        pr_delay = 0.0
+        if tonus_ecg == "Estimulação Parassimpática (Bradicardia/Atraso AV)":
+            pr_delay = 0.08  # Prolonga o intervalo PR (Bloqueio AV de 1º grau fisiológico)
+        elif tonus_ecg == "Estimulação Simpática (Taquicardia/Inotropismo)":
+            pr_delay = -0.04 # Encurta o intervalo PR (Condução dromotrópica positiva)
+
         for bt in beat_times:
             tc = t_ecg - bt
             mask = (tc > -0.3) & (tc < 0.6)
@@ -382,11 +399,21 @@ with tabs[3]:
                 t_wave = -0.6 * np.exp(-((tc_m-0.3)**2)/(2*0.05**2))
                 ecg[mask] += qrs + t_wave
             else:
+                # QRS e Onda T
                 qrs = 1.2 * np.exp(-((tc_m)**2)/(2*0.015**2))
                 t_wave = 0.3 * np.exp(-((tc_m-0.35)**2)/(2*0.03**2))
+                
+                # Amplitude da onda T e QRS aumenta levemente no simpático (Inotropismo)
+                if tonus_ecg == "Estimulação Simpática (Taquicardia/Inotropismo)":
+                    qrs *= 1.2
+                    t_wave *= 1.3
+                    
                 ecg[mask] += qrs + t_wave
+                
                 if patologia == "Ritmo Sinusal Normal":
-                    p_wave = 0.2 * np.exp(-((tc_m+0.2)**2)/(2*0.015**2))
+                    # Onda P com atraso dinâmico (PR)
+                    tempo_p = tc_m + 0.2 - pr_delay
+                    p_wave = 0.2 * np.exp(-((tempo_p)**2)/(2*0.015**2))
                     ecg[mask] += p_wave
 
         if patologia == "Fibrilação Atrial (Patologia Atrial)":
@@ -395,13 +422,13 @@ with tabs[3]:
         
         fig, ax = plt.subplots(figsize=(12, 4))
         ax.plot(t_ecg, ecg, 'r')
-        ax.set_title(f"Eletrocardiograma: {patologia}")
+        ax.set_title(f"Eletrocardiograma: {patologia} | {tonus_ecg}")
         ax.set_xlabel("Tempo (s)"); ax.set_ylabel("mV")
         ax.grid(True, which='both', color='red', alpha=0.2)
         st.pyplot(fig)
     
     elif modo == "Eletroencefalograma (EEG)":
-        st.markdown("""
+		st.markdown("""
         ### Neurociência Sistêmica e Codificação Preditiva
         O cérebro atua ativamente para **cancelar estímulos previsíveis** e economizar energia metabólica. 
         Abaixo, você pode aplicar estímulos repetitivos. Observe como o interneurônio inibitório **aprende** o ritmo 
@@ -1007,6 +1034,41 @@ with tabs[7]:
     ax_press.grid(True, alpha=0.3, ls='--')
     plt.tight_layout()
     st.pyplot(fig_press)
+
+    st.markdown("---")
+    st.subheader("Índices de Desempenho Cardíaco")
+    
+    fig_indices, (ax_vol, ax_forca) = plt.subplots(1, 2, figsize=(12, 5))
+    
+    # 1. Representação do Índice de Volume Ejetado (Fração de Ejeção)
+    # Na Insuficiência Cardíaca, o coração dilata/hipertrofia, alterando a capacidade volumétrica
+    vdf_estimado = 120.0 if condicao_hemo == "Fisiológico (Normal)" else 90.0
+    vsf_estimado = vdf_estimado - vs_hemo
+    
+    labels_vol = ['Volume Ejetado\n(Sistólico)', 'Volume Residual\n(Sistólico Final)']
+    sizes_vol = [vs_hemo, max(0, vsf_estimado)]
+    colors_vol = ['#ff9999','#66b3ff']
+    explode = (0.05, 0)
+    
+    ax_vol.pie(sizes_vol, explode=explode, labels=labels_vol, colors=colors_vol, autopct='%1.1f%%', shadow=True, startangle=140)
+    ax_vol.set_title("Índice de Volume Ejetado (Fração de Ejeção)")
+    
+    # 2. Representação do Índice de Força Muscular (Inotropismo Relativo)
+    # A força muscular real é confrontada com a resistência (pós-carga) que ela precisa vencer
+    indice_forca = (vs_hemo / 70.0) * (rpt_hemo / 1.0) * 100
+    
+    barras = ['Coração Saudável\n(Referência 100%)', 'Coração Atual\n(Paciente Simulado)']
+    valores = [100, indice_forca]
+    cores_bar = ['gray', 'crimson' if indice_forca < 80 else 'mediumseagreen']
+    
+    ax_forca.bar(barras, valores, color=cores_bar, width=0.6)
+    ax_forca.axhline(100, color='black', ls='--')
+    ax_forca.set_ylabel("Índice de Contratilidade (%)")
+    ax_forca.set_title("Índice de Força Muscular (Inotropismo)")
+    ax_forca.set_ylim(0, max(150, indice_forca + 20))
+    ax_forca.grid(axis='y', alpha=0.3)
+    
+    st.pyplot(fig_indices)
 
 
 # ==========================================================
