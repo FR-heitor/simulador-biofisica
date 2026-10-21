@@ -803,6 +803,70 @@ with tabs[5]:
     ax_hc.legend(loc='upper right')
     st.pyplot(fig_hc)
 
+# STREAMING_CHUNK:Renderizando a codificação de intensidade e o Potencial Evocado (Nervo Coclear)...
+    st.markdown("---")
+    st.subheader("Codificação de Intensidade e Potencial Evocado (Nervo Coclear)")
+    st.markdown("""
+    A taxa de disparo do nervo auditivo aumenta com o volume do som, mas **satura** em altas intensidades (comportamento logarítmico/sigmoidal) devido aos limites do período refratário neural e depleção de glutamato. 
+    O gráfico à direita simula o **Potencial de Ação Composto** (Eletrococleografia), exibindo a oscilação do Potencial Microfônico seguida pelo disparo massivo e sincronizado do nervo (Onda N1).
+    """)
+
+    col_ev1, col_ev2 = st.columns(2)
+
+    with col_ev1:
+        # 1. Curva de Saturação (Taxa de Disparo x dB)
+        db_range = np.linspace(0, 120, 100)
+        # Função sigmoide simulando a curva de saturação de uma fibra auditiva típica
+        taxa_disparo = 300 / (1 + np.exp(-(db_range - 55) / 10))
+        taxa_atual = 300 / (1 + np.exp(-(amp_user - 55) / 10))
+
+        fig_sat, ax_sat = plt.subplots(figsize=(6, 4))
+        ax_sat.plot(db_range, taxa_disparo, 'darkorange', lw=2.5, label='Curva de Resposta da Fibra')
+        ax_sat.plot(amp_user, taxa_atual, 'ro', markersize=10, label=f"Estímulo Atual ({amp_user} dB)")
+        
+        ax_sat.axvline(amp_user, color='r', linestyle='--', alpha=0.5)
+        ax_sat.axhline(300, color='gray', linestyle=':', label='Saturação Máxima (~300 Hz)')
+        
+        ax_sat.set_title("Saturação Fisiológica da Via Auditiva")
+        ax_sat.set_xlabel("Intensidade do Som (dB)")
+        ax_sat.set_ylabel("Taxa de Disparo (Potenciais/s)")
+        ax_sat.grid(True, alpha=0.3)
+        ax_sat.legend(loc='upper left', fontsize='small')
+        st.pyplot(fig_sat)
+
+    with col_ev2:
+        # 2. Potencial Evocado do Nervo (Sinal Macroscópico)
+        t_ev = np.linspace(0, 10, 500)
+        # Fator de escala baseado na saturação calculada ao lado
+        fator_evocado = taxa_atual / 300.0
+
+        # Potencial Microfônico Coclear (ocorre antes e durante, reflete a onda mecânica)
+        microfonico = 0.5 * fator_evocado * np.sin(2 * np.pi * (freq_user/1000) * t_ev) * np.exp(-t_ev/3)
+
+        # Potencial de Ação Composto (Ondas N1 e P1 do nervo coclear)
+        latencia_n1 = 1.8 - (0.3 * fator_evocado) # Som mais alto = latência ligeiramente menor
+        n1 = -6.0 * fator_evocado * np.exp(-((t_ev - latencia_n1)**2) / (2 * 0.15**2))
+        p1 = 2.5 * fator_evocado * np.exp(-((t_ev - (latencia_n1 + 0.8))**2) / (2 * 0.3**2))
+
+        potencial_evocado = microfonico + n1 + p1 + np.random.normal(0, 0.05, len(t_ev))
+
+        fig_ev, ax_ev = plt.subplots(figsize=(6, 4))
+        ax_ev.plot(t_ev, potencial_evocado, 'navy', lw=2)
+        ax_ev.set_title("Potencial Evocado (Eletrococleografia)")
+        ax_ev.set_xlabel("Tempo (ms)")
+        ax_ev.set_ylabel("Amplitude (µV)")
+        ax_ev.axhline(0, color='black', lw=0.5, ls='--')
+        
+        if fator_evocado > 0.1:
+            ax_ev.annotate('Onda N1\n(Disparo do Nervo)', xy=(latencia_n1, n1.min()), xytext=(latencia_n1 + 1.5, n1.min() - 1),
+                         arrowprops=dict(facecolor='red', shrink=0.05, width=1, headwidth=5))
+            ax_ev.annotate('Microfônico\n(Células Ciliadas)', xy=(0.5, microfonico[25]), xytext=(0.5, 3),
+                         arrowprops=dict(facecolor='blue', shrink=0.05, width=1, headwidth=5))
+
+        ax_ev.grid(True, alpha=0.3)
+        st.pyplot(fig_ev)
+
+
 # ==========================================================
 # ABA 7: EPILEPSIA (MICRO E MACRO)
 # ==========================================================
