@@ -842,31 +842,38 @@ with tabs[5]:
     st.markdown("---")
     st.subheader("Codificação de Intensidade e Potencial Evocado (Nervo Coclear)")
     st.markdown("""
-    A taxa de disparo do nervo auditivo aumenta com o volume do som, mas **satura** em altas intensidades (comportamento logarítmico/sigmoidal) devido aos limites do período refratário neural e depleção de glutamato. 
-    O gráfico à direita simula o **Potencial de Ação Composto** (Eletrococleografia), exibindo a oscilação do Potencial Microfônico seguida pelo disparo massivo e sincronizado do nervo (Onda N1).
+    A percepção subjetiva de volume e a sensibilidade à intensidade sonora alcançam um **limiar de saturação, descrito por uma curva de base logarítmica/sigmoidal**. 
+    **Eventos acústicos com intensidade superior a 120 dB não apresentam diferenças na percepção subjetiva do som**; o sistema nervoso central cessa de recrutar novas frequências de disparo neural. Ultrapassar este teto volumétrico não aumenta a sensação de audição, mas resulta primariamente em sensação de dor e risco de lesão tecidual severa, uma vez que a reserva de neurotransmissores e o período refratário chegam ao seu limite absoluto.
+    
+    O gráfico à direita simula o **Potencial de Ação Composto** (Eletrococleografia), exibindo a oscilação do Potencial Microfônico seguida pelo disparo massivo e sincronizado do nervo (Onda N1). Na presença de lesões ou surdez central, a amplitude e a resposta temporal desse potencial caem drasticamente.
     """)
 
     col_ev1, col_ev2 = st.columns(2)
 
     with col_ev1:
         # 1. Curva de Saturação (Taxa de Disparo x dB)
-        db_range = np.linspace(0, 120, 100)
-        # Função sigmoide simulando a curva de saturação de uma fibra auditiva típica
-        taxa_disparo = 300 / (1 + np.exp(-(db_range - 55) / 10))
-        taxa_atual = 300 / (1 + np.exp(-(amp_user - 55) / 10))
+        db_range = np.linspace(0, 140, 100)
+        
+        # Função logarítmica/sigmoide limitando-se (flatten) rigidamente a partir dos 120 dB
+        taxa_disparo_base = 300 / (1 + np.exp(-(db_range - 55) / 10))
+        taxa_disparo = np.where(db_range > 120, taxa_disparo_base[np.abs(db_range - 120).argmin()], taxa_disparo_base)
+        
+        taxa_atual_base = 300 / (1 + np.exp(-(amp_user - 55) / 10))
+        taxa_atual = taxa_atual_base if amp_user <= 120 else taxa_disparo_base[np.abs(db_range - 120).argmin()]
 
         fig_sat, ax_sat = plt.subplots(figsize=(6, 4))
-        ax_sat.plot(db_range, taxa_disparo, 'darkorange', lw=2.5, label='Curva de Resposta da Fibra')
+        ax_sat.plot(db_range, taxa_disparo, 'darkorange', lw=2.5, label='Curva Logarítmica da Fibra')
         ax_sat.plot(amp_user, taxa_atual, 'ro', markersize=10, label=f"Estímulo Atual ({amp_user} dB)")
         
         ax_sat.axvline(amp_user, color='r', linestyle='--', alpha=0.5)
+        ax_sat.axvline(120, color='red', linestyle='-', lw=1.5, alpha=0.7, label='Saturação de Percepção (120 dB)')
         ax_sat.axhline(300, color='gray', linestyle=':', label='Saturação Máxima (~300 impulsos/s)')
         
         ax_sat.set_title("Saturação Fisiológica da Via Auditiva")
         ax_sat.set_xlabel("Intensidade do Som (dB)")
         ax_sat.set_ylabel("Taxa de Disparo (impulsos/s)")
         ax_sat.grid(True, alpha=0.3)
-        ax_sat.legend(loc='upper left', fontsize='small')
+        ax_sat.legend(loc='lower right', fontsize='x-small')
         st.pyplot(fig_sat)
 
     with col_ev2:
