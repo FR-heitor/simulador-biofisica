@@ -710,6 +710,15 @@ with tabs[5]:
     > KANDEL, E. R. et al. (Ed.). *Princípios de neurociências*. 5. ed. Porto Alegre: AMGH, 2014.
     ---
     """)
+    
+    st.markdown("""
+    **Contribuição Científica (Módulo de Audição):**
+    *   **Nome:** Thassya Fernanda Oliveira dos Santos (SANTOS, THASSYA F.O.)
+    *   **Lattes iD:** [http://lattes.cnpq.br/6825522272490905](http://lattes.cnpq.br/6825522272490905)
+    *   **ORCID iD:** [https://orcid.org/0000-0002-8711-9949](https://orcid.org/0000-0002-8711-9949)
+    ---
+    """)
+
     st.header("👂 Acústica Fisiológica e Mecanotransdução")
     
     st.markdown("""
@@ -717,30 +726,62 @@ with tabs[5]:
     enquanto o ápice é flexível e responde a baixas frequências (sons graves).
     """)
     
+    st.subheader("Audiograma Clínico Interativo (Tonotopia)")
     col_aud1, col_aud2 = st.columns([1, 2])
     with col_aud1:
-        st.subheader("Audiograma Clínico")
-        perfil_aud = st.radio("Perfil do Paciente:", ["Jovem Saudável", "Idoso (Presbiacusia)", "Cão", "Morcego (Ultrassom)"])
+        perfil_aud = st.selectbox("Perfil Clínico do Paciente:", [
+            "Criança Sadia", 
+            "Surdez de Condução", 
+            "Surdez Central",
+            "Idosos (Presbiacusia)",
+            "Lesão (Resposta Betta Prejudicada)"
+        ])
         freq_user = st.slider("Frequência da Onda Sonora (Hz):", 20, 20000, 2000)
-        amp_user = st.slider("Volume do Som (Amplitude dB):", 0, 120, 60)
+        # O volume agora vai até 140 dB para demonstrar o limite e a saturação logarítmica descrita na teoria
+        amp_user = st.slider("Volume do Som (Amplitude dB):", 0, 140, 60)
         
     with col_aud2:
-        freqs_audiograma = [125, 250, 500, 1000, 2000, 4000, 8000, 16000]
-        perdas = {"Jovem Saudável": [0, 0, 5, 0, 5, 5, 10, 15],
-                  "Idoso (Presbiacusia)": [10, 15, 20, 25, 40, 60, 80, 95],
-                  "Cão": [-10, -5, 0, 0, -10, -15, -20, -10],
-                  "Morcego (Ultrassom)": [80, 70, 50, 30, 10, 0, -10, -20]}
+        freqs_clinicas = [250, 500, 1000, 2000, 4000, 8000]
+        perfis_base = {
+            "Criança Sadia": [5, 5, 0, 5, 5, 10],
+            "Surdez de Condução": [40, 45, 40, 35, 40, 35],
+            "Surdez Central": [15, 20, 25, 30, 35, 40],
+            "Idosos (Presbiacusia)": [15, 20, 25, 45, 65, 85],
+            "Lesão (Resposta Betta Prejudicada)": [20, 20, 25, 40, 80, 95] # Exige grande amplitude nas altas frequências
+        }
         
-        fig_aud, ax_aud = plt.subplots(figsize=(8, 4))
-        ax_aud.plot(freqs_audiograma, perdas[perfil_aud], 'o-', color='red' if 'Idoso' in perfil_aud else 'blue', lw=2)
+        st.write("Ajuste a intensidade (dB HL) para cada faixa de frequência pela perspectiva da tonotopia:")
+        cols_slider = st.columns(len(freqs_clinicas))
+        perdas_usuario = []
+        
+        # Gerando sliders dinâmicos para montar a curva do audiograma
+        for i, f in enumerate(freqs_clinicas):
+            with cols_slider[i]:
+                val = st.slider(f"{f}Hz", -10, 120, perfis_base[perfil_aud][i], step=5, key=f"aud_ton_{f}")
+                perdas_usuario.append(val)
+        
+        fig_aud, ax_aud = plt.subplots(figsize=(8, 3.5))
+        cor_linha = 'red' if 'Lesão' in perfil_aud or 'Idosos' in perfil_aud else 'blue'
+        ax_aud.plot(freqs_clinicas, perdas_usuario, 'o-', color=cor_linha, lw=2.5)
+        
+        # Formatação clássica do Audiograma
         ax_aud.set_xscale('log')
-        ax_aud.set_xticks(freqs_audiograma)
-        ax_aud.set_xticklabels(freqs_audiograma)
+        ax_aud.set_xticks(freqs_clinicas)
+        ax_aud.set_xticklabels(freqs_clinicas)
+        ax_aud.set_ylim(-15, 120)
         ax_aud.invert_yaxis()
-        ax_aud.set_title("Audiograma Clínico Tonal")
+        ax_aud.set_title(f"Audiograma: {perfil_aud}")
         ax_aud.set_xlabel("Frequência (Hz)")
         ax_aud.set_ylabel("Limiar Auditivo (dB HL)")
+        
+        # Áreas de gravidade clínica
+        ax_aud.axhspan(-15, 20, color='green', alpha=0.1, label='Audição Normal')
+        ax_aud.axhspan(20, 40, color='yellow', alpha=0.1, label='Perda Leve')
+        ax_aud.axhspan(40, 70, color='orange', alpha=0.1, label='Perda Moderada/Severa')
+        ax_aud.axhspan(70, 120, color='red', alpha=0.1, label='Perda Profunda')
+        
         ax_aud.grid(True, which="both", ls="-", alpha=0.3)
+        ax_aud.legend(loc='lower left', fontsize='x-small')
         st.pyplot(fig_aud)
 
     st.markdown("---")
@@ -782,7 +823,7 @@ with tabs[5]:
     c_aud1, c_aud2 = st.columns([1, 2])
     with c_aud1:
         st.write("Eletromotilidade da CCE")
-        contração = (amp_user / 120.0) * 20 
+        contração = (amp_user / 140.0) * 20 # Ajustado para o novo max slider 140
         fig_cel, ax_cel = plt.subplots(figsize=(4, 6))
         ax_cel.add_patch(patches.Rectangle((0.2, 0), 0.2, 1.0, facecolor='lightblue', edgecolor='black'))
         ax_cel.add_patch(patches.Rectangle((0.6, 0), 0.2, 1.0 - (contração/100), facecolor='magenta', edgecolor='black'))
@@ -795,7 +836,7 @@ with tabs[5]:
     with c_aud2:
         t_ton = np.linspace(0, 35, 500)
         local_pico = 35 * (1 - np.log10(freq_user/20) / np.log10(20000/20))
-        envelope = (amp_user/120.0) * np.exp(-((t_ton - local_pico)**2)/10)
+        envelope = (amp_user/140.0) * np.exp(-((t_ton - local_pico)**2)/10) # Ajustado para 140
         
         fig_ton, ax_ton = plt.subplots(figsize=(10, 4))
         ax_ton.plot(t_ton, envelope, color='green', lw=2)
@@ -822,7 +863,7 @@ with tabs[5]:
     
     onda_estimulo = np.sin(2 * np.pi * (freq_user / 1000) * t_hc)
     
-    fator_amp = amp_user / 120.0
+    fator_amp = amp_user / 140.0 # Ajustado para o novo max
     vm_hc = -70.0 + (35.0 * onda_estimulo * (onda_estimulo > 0) * fator_amp) + (10.0 * onda_estimulo * (onda_estimulo <= 0) * fator_amp)
     
     fig_hc, ax_hc = plt.subplots(figsize=(12, 4))
@@ -843,9 +884,9 @@ with tabs[5]:
     st.subheader("Codificação de Intensidade e Potencial Evocado (Nervo Coclear)")
     st.markdown("""
     A percepção subjetiva de volume e a sensibilidade à intensidade sonora alcançam um **limiar de saturação, descrito por uma curva de base logarítmica/sigmoidal**. 
-    **Eventos acústicos com intensidade superior a 120 dB não apresentam diferenças na percepção subjetiva do som**; o sistema nervoso central cessa de recrutar novas frequências de disparo neural. Ultrapassar este teto volumétrico não aumenta a sensação de audição, mas resulta primariamente em sensação de dor e risco de lesão tecidual severa, uma vez que a reserva de neurotransmissores e o período refratário chegam ao seu limite absoluto.
+    Como evidenciado no gráfico abaixo, a sensibilidade à intensidade (volume) alcança um teto: **eventos superiores a 120 dB não apresentam diferenças na percepção subjetiva do som**; o sistema nervoso central cessa de recrutar novas frequências de disparo neural. Ultrapassar este teto volumétrico não aumenta a sensação acústica, resultando primariamente em dor e lesão.
     
-    O gráfico à direita simula o **Potencial de Ação Composto** (Eletrococleografia), exibindo a oscilação do Potencial Microfônico seguida pelo disparo massivo e sincronizado do nervo (Onda N1). Na presença de lesões ou surdez central, a amplitude e a resposta temporal desse potencial caem drasticamente.
+    O gráfico à direita simula o **Potencial de Ação Composto** (Eletrococleografia), exibindo a oscilação do Potencial Microfônico seguida pelo disparo massivo e sincronizado do nervo (Onda N1). Na presença de patologias (como a reposta betta prejudicada), o limiar para gerar esse potencial evocado é deslocado, necessitando de maiores amplitudes.
     """)
 
     col_ev1, col_ev2 = st.columns(2)
