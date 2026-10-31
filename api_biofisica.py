@@ -2,7 +2,6 @@ import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.integrate import solve_ivp
-from scipy import signal
 import matplotlib.patches as patches
 
 # --- CONFIGURAÇÃO DO AMBIENTE ---
@@ -95,7 +94,7 @@ with st.sidebar.expander("Cloreto (Cl-)", expanded=True):
 vm_ghk = calc_ghk(na_i, na_e, p_na, k_i, k_e, p_k, cl_i, cl_e, p_cl)
 
 # --- ECRÃ PRINCIPAL ---
-st.title("🔬 Plataforma de Estudos Biofísicos")
+st.title("🔬 Plataforma de Estudos Biofísicos Integrados")
 
 tabs = st.tabs([
     "📊 Repouso (GHK)", 
@@ -105,7 +104,7 @@ tabs = st.tabs([
     "👁️ Visão", 
     "👂 Audição",
     "🧠 Epilepsia",
-	"🩸 Hemodinâmica",
+    "🩸 Hemodinâmica",
     "💪 Mecânica Muscular"
 ])
 
@@ -113,6 +112,15 @@ tabs = st.tabs([
 # ABA 1: POTENCIAL DE REPOUSO
 # ==========================================================
 with tabs[0]:
+    st.markdown("""
+    ### Fundamentação Teórica: Estado Eletroquímico Celular
+    A diferença de potencial elétrico através da membrana celular em repouso é resultado direto da permeabilidade seletiva da membrana e da distribuição assimétrica de íons (principalmente $Na^+$, $K^+$ e $Cl^-$), mantida ativamente pela bomba de Sódio-Potássio (Na+/K+-ATPase). O **Potencial de Nernst** calcula o equilíbrio exato para um único íon, onde as forças do gradiente químico de concentração e do gradiente elétrico se anulam perfeitamente. Como a membrana in vivo é permeável a múltiplos íons simultaneamente, o potencial transmembrana global ($V_m$) é melhor aproximado pela **Equação de Goldman-Hodgkin-Katz (GHK)**, que pondera o potencial de cada íon pela sua respectiva permeabilidade.
+
+    > **Referência:**
+    > CURI, R.; PROCOPIO, J. *Fisiologia básica*. 2. ed. Rio de Janeiro: Guanabara Koogan, 2017.
+    ---
+    """)
+    
     c1, c2 = st.columns([1, 2])
     with c1:
         st.subheader("Estado Eletroquímico")
@@ -136,12 +144,16 @@ with tabs[1]:
     st.header("🔌 Comportamento Elétrico Passivo (Circuito RC)")
     
     st.markdown("""
-    De acordo com o **Modelo do Mosaico Fluido** (Singer & Nicolson, 1972), a matriz lipídica atua como um isolante, 
-    separando as cargas dos meios intra e extracelular (funcionando como um **Capacitor, C**). As proteínas intrínsecas 
-    funcionam como vias condutoras de íons, conferindo resistência elétrica ao fluxo (funcionando como um **Resistor, R**).
+    ### Fundamentação Teórica: O Modelo do Mosaico Fluido e a Física Celular
+    De acordo com o modelo do mosaico fluido, a bicamada lipídica atua como um isolante perfeito, separando as cargas intra e extracelulares e funcionando, sob a ótica da física, como um **Capacitor ($C$)**. As proteínas transmembrana (canais iônicos), por sua vez, representam as vias de passagem para a corrente, oferecendo resistência ao fluxo de íons e operando como **Resistores ($R$)**.
     
-    A resposta da célula a um pulso elétrico obedece à dinâmica de um circuito RC em paralelo, sendo a curva governada 
-    pela **Constante de Tempo da Membrana ($\tau = R \cdot C$)**.
+    A resposta da célula a um pulso elétrico obedece rigorosamente à dinâmica exponencial de carga e descarga de um circuito RC em paralelo. A inércia elétrica para mudar a voltagem da membrana é quantificada pela **Constante de Tempo ($\tau = R \cdot C$)**, que define o tempo (em milissegundos) necessário para a membrana atingir 63% da sua carga final ou descarregar 37% de sua voltagem pico.
+
+    > **Referências:**
+    > OKUNO, E.; CALDAS, I. L.; CHOW, C. *Física para ciências biológicas e biomédicas*. São Paulo: Harbra, 1986.
+    >
+    > SINGER, S. J.; NICOLSON, G. L. The fluid mosaic model of the structure of cell membranes. *Science*, v. 175, n. 4023, p. 720-731, 1972.
+    ---
     """)
     
     col_rc1, col_rc2 = st.columns([1, 2])
@@ -195,6 +207,16 @@ with tabs[1]:
 # ABA 3: CÉLULAS EXCITÁVEIS (PA DETALHADO)
 # ==========================================================
 with tabs[2]:
+    st.markdown("""
+    ### Fundamentação Teórica: Dinâmica do Potencial de Ação
+    O Potencial de Ação é um evento bioelétrico do tipo "tudo ou nada" mediado por canais iônicos dependentes de voltagem (Voltage-Gated). Quando a membrana atinge o limiar de excitabilidade, os canais de Sódio abrem rapidamente e inativam em seguida, gerando a clássica "Fase de Despolarização". O influxo tardio de Potássio governa a "Fase de Repolarização". Na musculatura cardíaca, o cálcio ($Ca^{2+}$) atua criticamente formando a "Fase de Platô", prologando a refratariedade da célula para prevenir a tetanização miocárdica. O sistema nervoso autônomo e diversos agentes farmacológicos atuam modelando as cinéticas dessas condutâncias.
+
+    > **Referências:**
+    > KANDEL, E. R. et al. (Ed.). *Princípios de neurociências*. 5. ed. Porto Alegre: AMGH, 2014.
+    >
+    > HODGKIN, A. L.; HUXLEY, A. F. A quantitative description of membrane current and its application to conduction and excitation in nerve. *The Journal of Physiology*, v. 117, n. 4, p. 500-544, 1952.
+    ---
+    """)
     tipo_celula = st.radio("Selecione o Tecido:", ["Neurônio (Hodgkin-Huxley)", "Músculo Esquelético", "Músculo Cardíaco"], horizontal=True)
     st.info(f"O Repouso inicial é de {vm_ghk:.1f} mV. Lembre-se: O TTX inverte o estímulo causando hiperpolarização.")
     estimulo = st.slider("Intensidade do Estímulo Elétrico", 0.0, 50.0, 20.0)
@@ -207,7 +229,6 @@ with tabs[2]:
                 g_k = 36.0 if not tea else 0.0
                 g_l, e_na, e_k, e_l = 0.3, 50.0, -77.0, -54.4
                 
-                # Se TTX ativo, estímulo causa hiperpolarização profunda como proteção
                 estimulo_aplicado = -estimulo if ttx else estimulo
                 i_inj = estimulo_aplicado if 5.0 <= t <= 6.0 else 0.0
                 
@@ -273,7 +294,6 @@ with tabs[2]:
             gna, gk, gca = np.zeros(1000), np.zeros(1000), np.zeros(1000)
             fase = 0; t_f = 0
             
-            # TTX inverte o estímulo (gera hiperpolarização)
             estimulo_aplicado = -estimulo if ttx else estimulo
 
             for i in range(1, 1000):
@@ -355,24 +375,34 @@ with tabs[2]:
 # ABA 4: SINAIS MACROSCÓPICOS (ECG / EEG / EMG)
 # ==========================================================
 with tabs[3]:
+    st.markdown("""
+    ### Fundamentação Teórica: Geração dos Biossinais de Superfície (ECG, EEG e EMG)
+    A atividade elétrica de células individuais, através do meio condutor iônico do corpo humano (efeito de volume condutor), sobrepõe-se somando vetorialmente potenciais extra-celulares até a superfície da pele. 
+    *   O **ECG** registra a despolarização sequencial dos sincícios atriais e ventriculares, sendo modelado de acordo com a propagação vetorial do dipolo miocárdico e os atrasos induzidos pelo Nodo AV. 
+    *   O **EEG** reflete primariamente os Potenciais Pós-Sinápticos Excitatórios e Inibitórios (EPSPs e IPSPs) corticais que, pela organização piramidal do córtex, geram potenciais oscilatórios que formam ritmos e Potenciais Relacionados a Eventos (ERPs), ilustrando fenômenos neuro-cognitivos complexos.
+    *   O **EMG (CMAP)** quantifica o recrutamento espacial e temporal das unidades motoras, sendo diretamente impactado por bloqueadores de despolarização neuronal como a TTX.
+
+    > **Referências:**
+    > GUYTON, A. C.; HALL, J. E. *Tratado de fisiologia médica*. 13. ed. Rio de Janeiro: Elsevier, 2017.
+    > 
+    > OKUNO, E.; CALDAS, I. L.; CHOW, C. *Física para ciências biológicas e biomédicas*. São Paulo: Harbra, 1986.
+    ---
+    """)
     st.subheader("Simulação de Bio-sinais Macroscópicos")
     modo = st.radio("Selecione o Exame:", ["Eletrocardiograma (ECG)", "Eletroencefalograma (EEG)", "Eletromiograma (EMG / CMAP)"], horizontal=True)
     st.markdown("---")
-	
+    
     if modo == "Eletrocardiograma (ECG)":
         patologia = st.selectbox("Condição Cardíaca:", ["Ritmo Sinusal Normal", "Fibrilação Atrial (Patologia Atrial)", "Taquicardia Ventricular (Patologia Ventricular)"])
-        
-        # Modulação Autonômica
-        tonus_ecg = st.radio("Influência Autonômica:", ["Tônus Basal", "Estimulação Simpática (Taquicardia/Inotropismo)", "Estimulação Parassimpática (Bradicardia/Atraso AV)"], horizontal=True)
+        tonus_ecg = st.radio("Tônus Autonômico:", ["Controle Basal", "Estimulação Simpática (Taquicardia/Inotropismo)", "Estimulação Parassimpática (Bradicardia/K_ACh)"], horizontal=True)
         
         bpm_base = 75 if patologia == "Ritmo Sinusal Normal" else (160 if "Taquicardia" in patologia else 90)
-        if tonus_ecg == "Estimulação Simpática (Taquicardia/Inotropismo)" and patologia == "Ritmo Sinusal Normal":
-            bpm_base = 120
-        elif tonus_ecg == "Estimulação Parassimpática (Bradicardia/Atraso AV)" and patologia == "Ritmo Sinusal Normal":
-            bpm_base = 45
+        if tonus_ecg == "Estimulação Simpática (Taquicardia/Inotropismo)":
+            bpm_base += 40
+        elif tonus_ecg == "Estimulação Parassimpática (Bradicardia/K_ACh)":
+            bpm_base -= 25
             
-        bpm = st.slider("Frequência Cardíaca Média (BPM)", 30, 250, bpm_base)
-        
+        bpm = st.slider("Frequência Cardíaca Média (BPM)", 30, 220, bpm_base)
         fs = 500
         t_ecg = np.linspace(0, 5, 5 * fs)
         ecg = np.zeros_like(t_ecg)
@@ -383,10 +413,10 @@ with tabs[3]:
             if patologia == "Fibrilação Atrial (Patologia Atrial)": curr_t += np.random.uniform(0.4, 1.2) 
             else: curr_t += 60.0 / bpm
 
-        # Atraso AV (Intervalo PR) modulado pelo SNA
+        # Atraso dromotrópico no Nodo AV (Intervalo PR)
         pr_delay = 0.0
-        if tonus_ecg == "Estimulação Parassimpática (Bradicardia/Atraso AV)":
-            pr_delay = 0.08  # Prolonga o intervalo PR (Bloqueio AV de 1º grau fisiológico)
+        if tonus_ecg == "Estimulação Parassimpática (Bradicardia/K_ACh)":
+            pr_delay = 0.08 # Aumenta o intervalo PR (Condução dromotrópica negativa)
         elif tonus_ecg == "Estimulação Simpática (Taquicardia/Inotropismo)":
             pr_delay = -0.04 # Encurta o intervalo PR (Condução dromotrópica positiva)
 
@@ -426,7 +456,7 @@ with tabs[3]:
         ax.set_xlabel("Tempo (s)"); ax.set_ylabel("mV")
         ax.grid(True, which='both', color='red', alpha=0.2)
         st.pyplot(fig)
-	
+    
     elif modo == "Eletroencefalograma (EEG)":
         st.markdown("""
         ### Neurociência Sistêmica e Codificação Preditiva
@@ -466,25 +496,21 @@ with tabs[3]:
         for idx, s_time in enumerate(stim_times):
             pico = int(s_time / (4000 / len(t_sim)))
             
-            # Aleatorização do estímulo (variação natural de intensidade/ruído da via aferente)
             fator_ruido = np.random.uniform(0.85, 1.15)
             estimulo_real = int_norm * fator_ruido
             
             if pico < len(n_aferente): 
                 n_aferente[pico:pico+10] = 30 * estimulo_real
             
-            # Antecipação temporal: o interneurônio dispara ms ANTES do pico após aprender o ritmo
             forca_inibitoria = int_norm * aprendizado[idx]
             ante_pico = pico - int(60 * aprendizado[idx]) 
             if ante_pico > 0 and ante_pico < len(n_inibitorio):
                 n_inibitorio[ante_pico:ante_pico+15] = 30 * forca_inibitoria
             
-            # Erro de Predição (Sinal Cortical) = Realidade - Inibição (Predição)
             forga_cortical = max(0.0, estimulo_real - forca_inibitoria)
             if pico < len(n_cortical):
                 n_cortical[pico:pico+15] = 30 * forga_cortical
                 
-            # O ERP no EEG macroscópico reflete diretamente este erro de predição cortical
             erp_shape = 5.0 * forga_cortical * np.exp(-((t_eeg - (s_time/1000))**2)/(2*0.05**2))
             erp_sinal += erp_shape
             
@@ -525,40 +551,31 @@ with tabs[3]:
         with col2:
             st.info("💡 **Farmacologia Ativa:** Se o TTX estiver ligado na barra lateral, os canais de sódio não abrem e o músculo não responde ao estímulo do nervo (CMAP zero).")
 
-        # Tempo de 0 a 20 ms
         t_cmap = np.linspace(0, 20, 1000)
         cmap_signal = np.zeros_like(t_cmap)
         
-        # 1. Artefato do Estímulo (ocorre no momento do choque, ex: t=1.0 ms)
         artefato = 1.0 * np.exp(-((t_cmap - 1.0)**2) / (2 * 0.05**2))
         cmap_signal += artefato
         
-        # 2. Resposta Muscular (Onda M Bifásica)
-        # Se TTX estiver activo, não há despolarização (onda_m = 0)
         if not ttx:
-            latencia = 3.5  # tempo para a condução nervosa + fenda sináptica
-            # Simulação de uma onda M bifásica típica (somatório de Gaussinas)
+            latencia = 3.5 
             fase_negativa = 8.0 * recrutamento * np.exp(-((t_cmap - latencia - 1.0)**2) / (2 * 0.8**2))
             fase_positiva = -6.0 * recrutamento * np.exp(-((t_cmap - latencia - 2.5)**2) / (2 * 1.0**2))
             
-            # Se TEA estiver activo, a repolarização (fase positiva) é prolongada
             if tea:
                 fase_positiva = -4.0 * recrutamento * np.exp(-((t_cmap - latencia - 4.0)**2) / (2 * 2.5**2))
                 
             onda_m = fase_negativa + fase_positiva
             cmap_signal += onda_m
 
-        # Ruído elétrico basal do EMG
         cmap_signal += np.random.normal(0, 0.1, len(t_cmap))
 
-        # Plotagem do CMAP
         fig, ax = plt.subplots(figsize=(10, 5))
         ax.plot(t_cmap, cmap_signal, color='darkgreen', lw=2)
         ax.set_title(f"Eletromiograma Simulado: CMAP (Recrutamento: {recrutamento*100:.0f}%)")
         ax.set_xlabel("Tempo (ms)")
         ax.set_ylabel("Amplitude (mV)")
         
-        # Anotações didáticas
         ax.annotate('Artefato de\nEstímulo', xy=(1.0, 1.0), xytext=(1.5, 3.0),
                     arrowprops=dict(facecolor='black', shrink=0.05, width=1, headwidth=5))
         
@@ -576,6 +593,14 @@ with tabs[3]:
 # ABA 5: VISÃO
 # ==========================================================
 with tabs[4]:
+    st.markdown("""
+    ### Fundamentação Teórica: Óptica Fisiológica e Fototransdução Neural
+    O processo visual transcende a simples recepção óptica; a energia eletromagnética (fótons) é traduzida em variações do potencial de membrana pelas opsinas dos fotorreceptores. Em um mecanismo peculiar às vias sensoriais biológicas, a presença do estímulo (luz) desencadeia a conversão e degradação de cGMP (via Rodopsina $\\rightarrow$ Transducina $\\rightarrow$ Fosfodiesterase). A ausência do cGMP **fecha os canais de sódio/cálcio catiônicos**. Isso encerra a Corrente de Escuro celular e induz a célula fotossensora à **Hiperpolarização**, o que gera variações dinâmicas na liberação do neurotransmissor inibitório glutamato para as células bipolares.
+
+    > **Referência:**
+    > CURI, R.; PROCOPIO, J. *Fisiologia básica*. 2. ed. Rio de Janeiro: Guanabara Koogan, 2017.
+    ---
+    """)
     st.header("👁️ Óptica Fisiológica e Fototransdução")
     
     st.markdown("""
@@ -674,6 +699,17 @@ with tabs[4]:
 # ABA 6: AUDIÇÃO
 # ==========================================================
 with tabs[5]:
+    st.markdown("""
+    ### Fundamentação Teórica: Acústica e Mecanotransdução Coclear
+    A biofísica da audição opera a partir da ressonância de características do som por estruturas teciduais não homogêneas. A onda viajante, delineada por Békésy, deforma a Membrana Basilar cuja matriz proteica varia em complacência do giro basal rígido (ressonância para altas frequências) em direção ao helicotrema flexível apical (ressonância para baixas frequências) – mecanismo de **Tonotopia**. 
+    No Órgão de Corti, a inclinação dos estereocílios tensiona as *tip links* (molas proteicas mecânicas), abrindo canais permeáveis ao Potássio ($K^+$) endolinfático e gerando os potenciais oscilatórios AC e DC microfônicos (descritos por Tasaki) que resultarão, finalmente, no disparo do nervo auditivo craniano.
+
+    > **Referências:**
+    > CURI, R.; PROCOPIO, J. *Fisiologia básica*. 2. ed. Rio de Janeiro: Guanabara Koogan, 2017.
+    >
+    > KANDEL, E. R. et al. (Ed.). *Princípios de neurociências*. 5. ed. Porto Alegre: AMGH, 2014.
+    ---
+    """)
     st.header("👂 Acústica Fisiológica e Mecanotransdução")
     
     st.markdown("""
@@ -803,7 +839,6 @@ with tabs[5]:
     ax_hc.legend(loc='upper right')
     st.pyplot(fig_hc)
 
-# STREAMING_CHUNK:Renderizando a codificação de intensidade e o Potencial Evocado (Nervo Coclear)...
     st.markdown("---")
     st.subheader("Codificação de Intensidade e Potencial Evocado (Nervo Coclear)")
     st.markdown("""
@@ -828,7 +863,7 @@ with tabs[5]:
         ax_sat.axhline(300, color='gray', linestyle=':', label='Saturação Máxima (~300 impulsos/s)')
         
         ax_sat.set_title("Saturação Fisiológica da Via Auditiva")
-        ax_sat.set_xlabel("Nível do Som / Intensidade (dB)")
+        ax_sat.set_xlabel("Intensidade do Som (dB)")
         ax_sat.set_ylabel("Taxa de Disparo (impulsos/s)")
         ax_sat.grid(True, alpha=0.3)
         ax_sat.legend(loc='upper left', fontsize='small')
@@ -866,11 +901,20 @@ with tabs[5]:
         ax_ev.grid(True, alpha=0.3)
         st.pyplot(fig_ev)
 
-
 # ==========================================================
 # ABA 7: EPILEPSIA (MICRO E MACRO)
 # ==========================================================
 with tabs[6]:
+    st.markdown("""
+    ### Fundamentação Teórica: Fisiopatologia da Epilepsia e Farmacologia
+    A patogênese das síndromes epilépticas repousa na quebra do balanço entre a excitação (mediada mormente pelo glutamato) e a inibição (GABA) nas redes neurais corticais, além de oscilações anômalas em circuitos ressonantes talamocorticais (via Canais de Cálcio do Tipo-T, originando as Crises de Ausência). O modelo sintético de **Izhikevich (2003)** permite classificar os fenótipos de disparo (como *fast-spiking*, *chattering* e ressoadores) dependentes de correntes iônicas e mapear a macroatividade geradora das descargas em ponta e complexos ponta-onda vistas no eletroencefalograma. Fármacos neuroativos como Fenitoína e Diazepam atuam reequilibrando este balanço, embora possuam seletividade estrita pelos canais afetados.
+
+    > **Referências:**
+    > KANDEL, E. R. et al. (Ed.). *Princípios de neurociências*. 5. ed. Porto Alegre: AMGH, 2014.
+    >
+    > IZHIKEVICH, E. M. Simple model of spiking neurons. *IEEE Transactions on Neural Networks*, v. 14, n. 6, p. 1569-1572, 2003.
+    ---
+    """)
     st.header("🧠 Fisiopatologia: Epilepsia e Farmacologia")
     st.markdown("Estudo computacional dos padrões de disparo neuronal (Micro-sinal) e sua manifestação no Eletroencefalograma (Macro-sinal).")
     
@@ -994,20 +1038,20 @@ with tabs[6]:
 # ABA 8: HEMODINÂMICA
 # ==========================================================
 with tabs[7]:
+    st.markdown("""
+    ### Fundamentação Teórica: Hemodinâmica e Covariância Macroscópica
+    A interdependência entre a bomba cardíaca, os fluidos biológicos e os vasos é sustentada por bases matemáticas rígidas descritas, historicamente, pela **Lei de Poiseuille**. Dado que a resistência vascular periférica cresce inversamente com a *quarta potência do raio luminal* ($R \propto 1/r^4$), mudanças arteriolares minúsculas geram estresses massivos de Pressão Arterial ($PAM = DC \times RPT$). Na insuficiência sistólica hipertensiva, a hipertrofia reduz a capacidade de preenchimento (Volume Diastólico), deflacionando o **Débito Cardíaco**, o que por sua vez deprime a oferta de oxigênio (Fator de Hüfner) e limita a oxidação energética periférica.
+
+    > **Referência:**
+    > GUYTON, A. C.; HALL, J. E. *Tratado de fisiologia médica*. 13. ed. Rio de Janeiro: Elsevier, 2017.
+    ---
+    """)
     st.header("🩸 Hemodinâmica e Integração Sistêmica")
     
     condicao_hemo = st.radio("Condição Clínica Sistêmica:", [
         "Fisiológico (Normal)", 
         "Insuficiência Cardíaca (Hipertrofia Hipertensiva)"
     ], horizontal=True)
-    
-    st.markdown("""
-    Este módulo integra as variáveis cardíacas com o leito vascular periférico para demonstrar a Covariância entre Frequência, Pressão e Oxigenação.
-    As equações base são: 
-    *   **Débito Cardíaco:** $\\text{DC} = \\text{FC} \\times \\text{VS}$
-    *   **Pressão Arterial Média:** $\\text{PAM} = \\text{DC} \\times \\text{RPT}$
-    *   **Lei de Poiseuille:** $\\text{Resistência} \\propto 1/r^4$
-    """)
     
     if condicao_hemo == "Insuficiência Cardíaca (Hipertrofia Hipertensiva)":
         st.error("""
@@ -1099,51 +1143,24 @@ with tabs[7]:
     plt.tight_layout()
     st.pyplot(fig_press)
 
-    st.markdown("---")
-    st.subheader("Índices de Desempenho Cardíaco")
-    
-    fig_indices, (ax_vol, ax_forca) = plt.subplots(1, 2, figsize=(12, 5))
-    
-    # 1. Representação do Índice de Volume Ejetado (Fração de Ejeção)
-    # Na Insuficiência Cardíaca, o coração dilata/hipertrofia, alterando a capacidade volumétrica
-    vdf_estimado = 120.0 if condicao_hemo == "Fisiológico (Normal)" else 90.0
-    vsf_estimado = vdf_estimado - vs_hemo
-    
-    labels_vol = ['Volume Ejetado\n(Sistólico)', 'Volume Residual\n(Sistólico Final)']
-    sizes_vol = [vs_hemo, max(0, vsf_estimado)]
-    colors_vol = ['#ff9999','#66b3ff']
-    explode = (0.05, 0)
-    
-    ax_vol.pie(sizes_vol, explode=explode, labels=labels_vol, colors=colors_vol, autopct='%1.1f%%', shadow=True, startangle=140)
-    ax_vol.set_title("Índice de Volume Ejetado (Fração de Ejeção)")
-    
-    # 2. Representação do Índice de Força Muscular (Inotropismo Relativo)
-    # A força muscular real é confrontada com a resistência (pós-carga) que ela precisa vencer
-    indice_forca = (vs_hemo / 70.0) * (rpt_hemo / 1.0) * 100
-    
-    barras = ['Coração Saudável\n(Referência 100%)', 'Coração Atual\n(Paciente Simulado)']
-    valores = [100, indice_forca]
-    cores_bar = ['gray', 'crimson' if indice_forca < 80 else 'mediumseagreen']
-    
-    ax_forca.bar(barras, valores, color=cores_bar, width=0.6)
-    ax_forca.axhline(100, color='black', ls='--')
-    ax_forca.set_ylabel("Índice de Contratilidade (%)")
-    ax_forca.set_title("Índice de Força Muscular (Inotropismo)")
-    ax_forca.set_ylim(0, max(150, indice_forca + 20))
-    ax_forca.grid(axis='y', alpha=0.3)
-    
-    st.pyplot(fig_indices)
-
 
 # ==========================================================
 # ABA 9: MECÂNICA MUSCULAR (Curva Comprimento-Tensão)
 # ==========================================================
 with tabs[8]:
-    st.header("💪 Biomecânica Muscular: Comprimento, Força e Velocidade")
     st.markdown("""
-    Esta seção ilustra a relação **Força-Comprimento** (sobreposição ideal de actina e miosina) descrita por Gordon, Huxley e Julian (1966), 
-    e a **Mecânica da Contração** descrita pelo modelo de Hill, onde a velocidade de contração difere entre os padrões isométricos e isotônicos dependendo da carga imposta.
+    ### Fundamentação Teórica: Fisiologia Muscular e Cinemática do Contratil
+    O módulo ilustra experimentalmente dois paradigmas biomecânicos. O primeiro é a **Relação Força-Comprimento** (Gordon, Huxley e Julian, 1966), baseada no preceito da teoria dos filamentos deslizantes: existe um comprimento inicial de sarcômero ideal para formar a máxima interação tridimensional entre as pontes cruzadas de actina e miosina (Tensão Ativa); em estiramentos extremos, atuam apenas os tecidos elásticos conjuntivos e a titina (Tensão Passiva). O segundo aborda as dinâmicas termodinâmicas descritas na **Equação de Hill (1938)**: caso o sistema não ultrapasse a força mecânica ambiente imposta como peso, contraímos *isometricamente*. Caso vença, temos a contração *isotônica*, cuja velocidade é inversamente proporcional à carga erguida.
+
+    > **Referências:**
+    > CURI, R.; PROCOPIO, J. *Fisiologia básica*. 2. ed. Rio de Janeiro: Guanabara Koogan, 2017.
+    >
+    > HILL, A. V. The heat of shortening and the dynamic constants of muscle. *Proceedings of the Royal Society of London. Series B - Biological Sciences*, v. 126, n. 843, p. 136-195, 1938.
+    >
+    > GORDON, A. M.; HUXLEY, A. F.; JULIAN, F. J. The variation in isometric tension with sarcomere length in vertebrate muscle fibres. *The Journal of Physiology*, v. 184, n. 1, p. 170-192, 1966.
+    ---
     """)
+    st.header("💪 Biomecânica Muscular: Comprimento, Força e Velocidade")
 
     col_m1, col_m2 = st.columns(2)
     with col_m1:
